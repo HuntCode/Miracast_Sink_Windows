@@ -284,7 +284,7 @@ void SDLPlayer::OnMouseUp(const SDL_MouseButtonEvent& buttonEvent)
 
 void SDLPlayer::OnMouseMove(const SDL_MouseMotionEvent& motionEvent)
 {
-    std::cout << "Mouse Move to (" << motionEvent.x << ", " << motionEvent.y << ")" << std::endl;
+    //std::cout << "Mouse Move to (" << motionEvent.x << ", " << motionEvent.y << ")" << std::endl;
 
     char xdiff, ydiff;
     xdiff = (char)(motionEvent.x - last_x);
@@ -313,7 +313,9 @@ void SDLPlayer::OnKeyDown(const SDL_KeyboardEvent& keyEvent)
         std::cout << "Alt is pressed" << std::endl;
         modType = MODIFY_ALT;
     }
-    m_sink->GetUIBCManager()->SendHIDKeyboard(KEYBOARD_DOWN, modType, keyEvent.keysym.sym);
+
+    unsigned short keyboardValue = KeyCodeToKeyValue(keyEvent.keysym.sym);
+    m_sink->GetUIBCManager()->SendHIDKeyboard(KEYBOARD_DOWN, modType, keyboardValue);
 }
 
 void SDLPlayer::OnKeyUp(const SDL_KeyboardEvent& keyEvent)
@@ -331,7 +333,109 @@ void SDLPlayer::OnKeyUp(const SDL_KeyboardEvent& keyEvent)
         modType = MODIFY_ALT;
     }
     
-    m_sink->GetUIBCManager()->SendHIDKeyboard(KEYBOARD_UP, modType, keyEvent.keysym.sym);
+    unsigned short keyboardValue = KeyCodeToKeyValue(keyEvent.keysym.sym);
+    m_sink->GetUIBCManager()->SendHIDKeyboard(KEYBOARD_UP, modType, keyboardValue);
+}
+
+unsigned short SDLPlayer::KeyCodeToKeyValue(const SDL_Keycode&code)
+{
+    // 如果是ASCII值，直接返回，如果是特殊按键，如caps lock，需要转换
+    unsigned short keyboardValue = code;
+    switch (code)
+    {
+    case SDLK_F1:
+    case SDLK_F2:
+    case SDLK_F3:
+    case SDLK_F4:
+    case SDLK_F5:
+    case SDLK_F6:
+    case SDLK_F7:
+    case SDLK_F8:
+    case SDLK_F9:
+    case SDLK_F10:
+    case SDLK_F11:
+    case SDLK_F12:
+        keyboardValue = HH_FUNCTION_F1 + code - SDLK_F1;
+        break;
+    case SDLK_LEFT:
+        keyboardValue = HH_SPECIAL_LEFT_ARROW;
+        break;
+    case SDLK_RIGHT:
+        keyboardValue = HH_SPECIAL_RIGHT_ARROW;
+        break;
+    case SDLK_UP:
+        keyboardValue = HH_SPECIAL_UP_ARROW;
+        break;
+    case SDLK_DOWN:
+        keyboardValue = HH_SPECIAL_DOWN_ARROW;
+        break;
+    case SDLK_INSERT:
+        keyboardValue = HH_SPECIAL_INSERT;
+        break;
+    case SDLK_HOME:
+        keyboardValue = HH_SPECIAL_HOME;
+        break;
+    case SDLK_END:
+        keyboardValue = HH_SPECIAL_END;
+        break;
+    case SDLK_PAGEUP:
+        keyboardValue = HH_SPECIAL_PAGEUP;
+        break;
+    case SDLK_PAGEDOWN:
+        keyboardValue = HH_SPECIAL_PAGEDOWN;
+        break;
+    case SDLK_CAPSLOCK:
+        keyboardValue = HH_SPECIAL_CAPS_LOCK;
+        break;
+    case SDLK_NUMLOCKCLEAR:
+        keyboardValue = HH_SPECIAL_NUM_LOCK;
+        break;
+    case SDLK_PRINTSCREEN:
+        keyboardValue = HH_SPECIAL_PRINT_SCREEN;
+        break;
+    case SDLK_SCROLLLOCK:
+        keyboardValue = HH_SPECIAL_SCROLL_LOCK;
+        break;
+    case SDLK_PAUSE:
+        keyboardValue = HH_SPECIAL_PAUSE;
+        break;
+    case SDLK_KP_DIVIDE:
+        keyboardValue = HH_SPECIAL_KP_DIVIDE;
+        break;
+    case SDLK_KP_MULTIPLY:
+        keyboardValue = HH_SPECIAL_KP_MULTIPLY;
+        break;
+    case SDLK_KP_MINUS:
+        keyboardValue = HH_SPECIAL_KP_MINUS;
+        break;
+    case SDLK_KP_PLUS:
+        keyboardValue = HH_SPECIAL_KP_PLUS;
+        break;
+    case SDLK_KP_ENTER:
+        keyboardValue = HH_SPECIAL_KP_ENTER;
+        break;
+    case SDLK_KP_1:
+    case SDLK_KP_2:
+    case SDLK_KP_3:
+    case SDLK_KP_4:
+    case SDLK_KP_5:
+    case SDLK_KP_6:
+    case SDLK_KP_7:
+    case SDLK_KP_8:
+    case SDLK_KP_9:
+        keyboardValue = HH_SPECIAL_KP_1 + code - SDLK_KP_1;
+        break;
+    case SDLK_KP_0:
+        keyboardValue = HH_SPECIAL_KP_0;
+        break;
+    case SDLK_KP_PERIOD:
+        keyboardValue = HH_SPECIAL_KP_PERIOD;
+        break;
+    default:
+        break;
+    }
+
+    return keyboardValue;
 }
 
 void SDLPlayer::Render()

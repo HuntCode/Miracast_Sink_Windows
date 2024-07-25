@@ -45,7 +45,7 @@ private:
     void OnMouseMove(const SDL_MouseMotionEvent& motionEvent);
     void OnKeyDown(const SDL_KeyboardEvent& keyEvent);
     void OnKeyUp(const SDL_KeyboardEvent& keyEvent);
-
+    unsigned short KeyCodeToKeyValue(const SDL_Keycode& code);
     void Render();
 
     MiracastSink* m_sink;

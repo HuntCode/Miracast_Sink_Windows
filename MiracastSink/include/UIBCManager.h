@@ -11,21 +11,70 @@
 #include <arpa/inet.h>
 #endif
 
-#define KEYBOARD_DOWN          2
-#define KEYBOARD_UP            3
+// Mouse defines
+#define MOUSE_BUTTON_DOWN      0
+#define MOUSE_BUTTON_UP        1
+#define MOUSE_MOTION           2
+#define MOUSE_WHEEL		       3
+
+// Keyboard defines
+#define KEYBOARD_DOWN          0
+#define KEYBOARD_UP            1
 
 #define MODIFY_NONE            0
 #define MODIFY_SHIFT           1
 #define MODIFY_CTRL            2
 #define MODIFY_ALT             3
 
+#define HH_FUNCTION_F1 0x0100     /* Function key (F1 - Fn) */
+#define HH_FUNCTION_F2 (HH_FUNCTION_F1 + 1)
+#define HH_FUNCTION_F3 (HH_FUNCTION_F1 + 2)
+#define HH_FUNCTION_F4 (HH_FUNCTION_F1 + 3)
+#define HH_FUNCTION_F5 (HH_FUNCTION_F1 + 4)
+#define HH_FUNCTION_F6 (HH_FUNCTION_F1 + 5)
+#define HH_FUNCTION_F7 (HH_FUNCTION_F1 + 6)
+#define HH_FUNCTION_F8 (HH_FUNCTION_F1 + 7)
+#define HH_FUNCTION_F9 (HH_FUNCTION_F1 + 8)
+#define HH_FUNCTION_F10 (HH_FUNCTION_F1 + 9)
+#define HH_FUNCTION_F11 (HH_FUNCTION_F1 + 10)
+#define HH_FUNCTION_F12 (HH_FUNCTION_F1 + 11)
+
+#define HH_SPECIAL_LEFT_ARROW   0x0110     /* Special key (e.g. Cursor Up or Menu) */
+#define HH_SPECIAL_RIGHT_ARROW  0x0111
+#define HH_SPECIAL_UP_ARROW     0x0112
+#define HH_SPECIAL_DOWN_ARROW   0x0113
+#define HH_SPECIAL_INSERT       0x0120
+#define HH_SPECIAL_HOME         0x0121
+#define HH_SPECIAL_END          0x0122
+#define HH_SPECIAL_PAGEUP       0x0123
+#define HH_SPECIAL_PAGEDOWN     0x0124
+#define HH_SPECIAL_CAPS_LOCK    0x0130
+#define HH_SPECIAL_NUM_LOCK     0x0131
+#define HH_SPECIAL_PRINT_SCREEN 0x0132
+#define HH_SPECIAL_SCROLL_LOCK  0x0133
+#define HH_SPECIAL_PAUSE        0x0134
+
+// KeyPad
+#define HH_SPECIAL_KP_DIVIDE    0x0140
+#define HH_SPECIAL_KP_MULTIPLY  0x0141
+#define HH_SPECIAL_KP_MINUS     0x0142
+#define HH_SPECIAL_KP_PLUS      0x0143
+#define HH_SPECIAL_KP_ENTER     0x0144
+#define HH_SPECIAL_KP_1         0x0150
+#define HH_SPECIAL_KP_2         0x0151
+#define HH_SPECIAL_KP_3         0x0152
+#define HH_SPECIAL_KP_4         0x0153
+#define HH_SPECIAL_KP_5         0x0154
+#define HH_SPECIAL_KP_6         0x0155
+#define HH_SPECIAL_KP_7         0x0156
+#define HH_SPECIAL_KP_8         0x0157
+#define HH_SPECIAL_KP_9         0x0158
+#define HH_SPECIAL_KP_0         0x0159
+#define HH_SPECIAL_KP_PERIOD    0x015A
+
+// HIDC defines
 #define INPUT_GENERIC          0
 #define INPUT_HIDC             1
-
-#define MOUSE_BUTTON_DOWN      0
-#define MOUSE_BUTTON_UP        1
-#define MOUSE_MOTION           2
-#define MOUSE_WHEEL		       3
 
 #define HID_TYPE_KEYBOARD   0
 #define HID_TYPE_MOUSE      1
@@ -113,7 +162,7 @@ public:
 	bool Connected();
 
     void SendHIDMouse(unsigned char type, char xdiff, char ydiff);
-    void SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short ascii);
+    void SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short keyboardValue);
 
 private:
 	int m_uibcFd;
@@ -132,7 +181,7 @@ private:
     void SendHIDDescriptor(unsigned char type, unsigned char* body, unsigned short length);
     void SendUIBCEvent(unsigned char category, unsigned char* body, unsigned short length);
     // return HID usage ID
-    char AsciiToHID(unsigned short ascii);
+    char KeyboardValueToHID(unsigned short keyboardValue);
 };
 
 #endif // HH_UIBCMANAGER_H
