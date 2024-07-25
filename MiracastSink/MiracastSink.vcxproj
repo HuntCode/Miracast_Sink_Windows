@@ -128,6 +128,7 @@
     <ClInclude Include="include\RTSPResponse.h" />
     <ClInclude Include="include\SDLPlayer.h" />
     <ClInclude Include="include\TSDemux.h" />
+    <ClInclude Include="include\UIBCManager.h" />
     <ClInclude Include="include\WXBase.h" />
     <ClInclude Include="include\WXSafeQueue.h" />
     <ClInclude Include="pch.h" />
@@ -143,6 +144,7 @@
     <ClCompile Include="source\RTSPResponse.cpp" />
     <ClCompile Include="source\SDLPlayer.cpp" />
     <ClCompile Include="source\TSDemux.cpp" />
+    <ClCompile Include="source\UIBCManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

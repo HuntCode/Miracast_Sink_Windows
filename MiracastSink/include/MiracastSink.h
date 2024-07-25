@@ -8,11 +8,12 @@
 #include <evpp/tcp_conn.h>
 #include <evpp/udp/sync_udp_client.h>
 #include <evpp/udp/udp_server.h>
-#include <vlc/vlc.h>
 
 #include "RTSPResponse.h"
 #include "WXSafeQueue.h"
 #include "SDLPlayer.h"
+#include "EventLoopManager.h"
+#include "UIBCManager.h"
 
 using namespace winrt::Windows::Media::Miracast;
 
@@ -36,7 +37,7 @@ private:
 class MiracastSink
 {
 public:
-	MiracastSink(evpp::EventLoop* loop);
+	MiracastSink();
 	~MiracastSink();
 
 	bool Start(std::string ip);
@@ -47,10 +48,11 @@ public:
 
 	void OnData(int type, uint8_t* buffer, int bufSize);
 
+	std::shared_ptr<UIBCManager>& GetUIBCManager();
+
 private:
 	std::string m_deviceName;
 	MiracastReceiverConnection m_conn;
-	evpp::EventLoop* m_loop;
 	shared_ptr<evpp::TCPClient> _tcpClient;
 	std::shared_ptr<RtspResponse> _rtspResponsePtr;
 	evpp::udp::Server _serverStream;
@@ -60,10 +62,6 @@ private:
 	bool _initRtspUdp = false;
 	bool _initMedia = false;
 	bool _isConnected = false;
-
-	libvlc_instance_t* inst = nullptr;
-	libvlc_media_player_t* mp = nullptr;
-	libvlc_media_t* m = nullptr;
 
 	void close();
 	void onMessage(const evpp::TCPConnPtr& conn, evpp::Buffer* msg);
@@ -81,14 +79,15 @@ private:
 	void requestIdr();
 
 	bool generateRtpPort(uint16_t& port);
-	void openMediaPlayer(string url);
-	//int openMediaPlayerSdl(string url);
-	void closeMediaPlayer();
 
+	std::string m_remoteIP;
+	std::shared_ptr<UIBCManager> m_uibcManager;
+
+	EventLoopManager m_eventLoopManager;
 	WXFifo m_tsDataBuffer;
 	void* m_pTSDemux;
 	std::unique_ptr<TSParseWorker> m_tsParseWorker;
-	std::unique_ptr<SDLPlayer> m_sdlPlayer;
+	std::shared_ptr<SDLPlayer> m_sdlPlayer;
 
 	WXSafeQueue<std::vector<uint8_t>> m_videoDataQueue;
 	WXSafeQueue<std::vector<uint8_t>> m_audioDataQueue;

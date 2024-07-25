@@ -10,6 +10,7 @@ using namespace std;
 class RtspResponse
 {
 public:
+	RtspResponse();
 	~RtspResponse();
 	enum Method
 	{
@@ -56,9 +57,9 @@ public:
 		_rtspUrl = std::string(url);
 	}
 
-	void setRtspIp(const char* ip)
+	int GetUIBCPort()
 	{
-		_rtsp_ip = std::string(ip);
+		return m_uibcPort;
 	}
 
 	int buildOptionReq(const char* buf, int bufSize);
@@ -71,14 +72,16 @@ public:
 	int buildTeardown(const char* buf, int bufSize);
 	int buildIdrReq(const char* buf, int bufSize);
 
+	int extractPort(const std::string& input);
+
 private:
 	Method _method;
 	uint32_t _cseq = 1;
 	uint32_t _cseq_res = 1;
 	std::string _userAgent;
 	std::string _rtspUrl;
-	std::string _rtsp_ip;
 	uint32_t _sessionId = 0;
+	int m_uibcPort;
 };
 
 #endif

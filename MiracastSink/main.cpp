@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "MiracastApp.h"
+#include "SDLPlayer.h"
 
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -14,9 +15,10 @@ int main()
 	}
 #endif
 
-	std::thread([]() {
-		MiracastApp::instance()->StartMiracast();
-		}).detach();
+	google::InitGoogleLogging("");
+	google::SetStderrLogging(google::GLOG_ERROR);
+
+	MiracastApp::instance()->StartMiracast();
 
 	// 阻塞主线程，直到输入 'q' 字符
 	char input;
@@ -29,5 +31,6 @@ int main()
 	}
 
 	MiracastApp::instance()->StopMiracast();
+
 	return 0;
 }

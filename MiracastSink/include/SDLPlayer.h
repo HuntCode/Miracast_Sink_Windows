@@ -18,12 +18,13 @@ extern "C" {
 #include <iostream>
 #include <vector>
 
-
+class MiracastSink;
 class SDLPlayer {
 public:
-    SDLPlayer(int videoWidth, int videoHeight);
+    SDLPlayer(int videoWidth, int videoHeight, MiracastSink* sink);
     ~SDLPlayer();
 
+    void Init(const std::string & name);
     void Play();
 
     void ProcessVideo(uint8_t* buffer, int bufSize);
@@ -32,7 +33,6 @@ public:
 private:
     void InitDecoder();
     
-    void PlayThreadFunc();
     void VideoThreadFunc();
     void AudioThreadFunc();
 
@@ -40,8 +40,16 @@ private:
     void DecodeAndQueueAudio(const std::vector<uint8_t>& data);
 
     void HandleEvents();
+    void OnMouseDown(const SDL_MouseButtonEvent& buttonEvent);
+    void OnMouseUp(const SDL_MouseButtonEvent& buttonEvent);
+    void OnMouseMove(const SDL_MouseMotionEvent& motionEvent);
+    void OnKeyDown(const SDL_KeyboardEvent& keyEvent);
+    void OnKeyUp(const SDL_KeyboardEvent& keyEvent);
+
     void Render();
 
+    MiracastSink* m_sink;
+    int last_x = 0, last_y = 0;
     // 成员变量和方法
     SDL_AudioSpec audioSpec;
     SDL_AudioDeviceID audioDevice;
@@ -50,7 +58,7 @@ private:
     SDL_Texture* texture;
     std::queue<std::vector<uint8_t>> audioQueue;
     std::queue<std::vector<uint8_t>> videoQueue;
-   // std::queue<std::vector<uint8_t>> renderQueue;
+
     std::queue<AVFrame*> renderQueue;
     std::mutex audioMutex;
     std::mutex videoMutex;
@@ -62,11 +70,9 @@ private:
     const int videoHeight;
     AVCodecContext* audioCodecContext = nullptr;
     AVCodecContext* videoCodecContext = nullptr;
-    //SwrContext* swrContext = nullptr;
-    //SwsContext* swsContext = nullptr;
+
     std::thread audioThread;
     std::thread videoThread;
-    std::thread playThread;
 };
 
 #endif // HH_SDLPLAYER_H

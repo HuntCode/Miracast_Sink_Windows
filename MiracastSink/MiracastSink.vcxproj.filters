@@ -45,6 +45,9 @@
     <ClInclude Include="include\MiracastWiFiDirect.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\UIBCManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -69,6 +72,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\MiracastWiFiDirect.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\UIBCManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

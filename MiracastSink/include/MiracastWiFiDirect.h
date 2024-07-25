@@ -9,10 +9,9 @@ class MiracastWiFiDirect
 public:
 	MiracastWiFiDirect();
 	~MiracastWiFiDirect();
-	void Start(evpp::EventLoop* loop);
+	void Start();
 
 private:
-	evpp::EventLoop* m_loop;
 	std::unordered_map<winrt::hstring, std::shared_ptr<MiracastSink>> m_miracastSinkMap;
 	MiracastReceiver m_receiver;
 	MiracastReceiverSession m_session;
