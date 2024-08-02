@@ -121,16 +121,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="include\EventLoopManager.h" />
+    <ClInclude Include="include\IMiracastCallback.h" />
     <ClInclude Include="include\MiracastApp.h" />
     <ClInclude Include="include\MiracastSink.h" />
     <ClInclude Include="include\MiracastWiFiDirect.h" />
-    <ClInclude Include="include\RTSPResponse.h" />
+    <ClInclude Include="include\RTPManager.h" />
+    <ClInclude Include="include\RTSPManager.h" />
     <ClInclude Include="include\SDLPlayer.h" />
     <ClInclude Include="include\TSDemux.h" />
     <ClInclude Include="include\UIBCManager.h" />
     <ClInclude Include="include\WXBase.h" />
-    <ClInclude Include="include\WXSafeQueue.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
@@ -141,7 +141,8 @@
     <ClCompile Include="source\MiracastApp.cpp" />
     <ClCompile Include="source\MiracastSink.cpp" />
     <ClCompile Include="source\MiracastWiFiDirect.cpp" />
-    <ClCompile Include="source\RTSPResponse.cpp" />
+    <ClCompile Include="source\RTPManager.cpp" />
+    <ClCompile Include="source\RTSPManager.cpp" />
     <ClCompile Include="source\SDLPlayer.cpp" />
     <ClCompile Include="source\TSDemux.cpp" />
     <ClCompile Include="source\UIBCManager.cpp" />

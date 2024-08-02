@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "MiracastApp.h"
-#include "SDLPlayer.h"
 
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -14,9 +13,6 @@ int main()
 		WSACleanup();
 	}
 #endif
-
-	google::InitGoogleLogging("");
-	google::SetStderrLogging(google::GLOG_ERROR);
 
 	MiracastApp::instance()->StartMiracast();
 

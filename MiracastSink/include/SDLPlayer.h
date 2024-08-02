@@ -21,24 +21,24 @@ extern "C" {
 class MiracastSink;
 class SDLPlayer {
 public:
-    SDLPlayer(int videoWidth, int videoHeight, MiracastSink* sink);
+    SDLPlayer(int videoWidth, int videoHeight, std::shared_ptr<MiracastSink> sink);
     ~SDLPlayer();
 
     void Init(const std::string & name);
     void Play();
+    void Stop();
 
     void ProcessVideo(uint8_t* buffer, int bufSize);
     void ProcessAudio(uint8_t* buffer, int bufSize);
 
 private:
     void InitDecoder();
-    
     void VideoThreadFunc();
     void AudioThreadFunc();
-
     void DecodeAndQueueVideo(const std::vector<uint8_t>& data);
     void DecodeAndQueueAudio(const std::vector<uint8_t>& data);
 
+    bool IsEventForWindow(const SDL_Event& e, SDL_Window* window);
     void HandleEvents();
     void OnMouseDown(const SDL_MouseButtonEvent& buttonEvent);
     void OnMouseUp(const SDL_MouseButtonEvent& buttonEvent);
@@ -48,7 +48,10 @@ private:
     unsigned short KeyCodeToKeyValue(const SDL_Keycode& code);
     void Render();
 
-    MiracastSink* m_sink;
+    static std::atomic<int> s_instanceCount;
+    std::mutex m_initMutex;
+
+    std::shared_ptr<MiracastSink> m_sink;
     int last_x = 0, last_y = 0;
     // 成员变量和方法
     SDL_AudioSpec audioSpec;

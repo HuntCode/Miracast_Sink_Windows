@@ -6,26 +6,37 @@
 #define windowHeight 570
 #define MY_DEFINE_REFRESH_EVENT     (SDL_USEREVENT + 1)
 
-SDLPlayer::SDLPlayer(int videoWidth, int videoHeight, MiracastSink* sink)
+std::atomic<int> SDLPlayer::s_instanceCount = 0;
+
+SDLPlayer::SDLPlayer(int videoWidth, int videoHeight, std::shared_ptr<MiracastSink> sink)
     : m_sink(sink), videoWidth(videoWidth), videoHeight(videoHeight)
 {
-
+    {
+        std::lock_guard<std::mutex> lock(m_initMutex);
+        if (s_instanceCount == 0) {
+            if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) < 0) {
+                std::cerr << "SDL initialization failed: " << SDL_GetError() << std::endl;
+                return;
+            }
+        }
+        ++s_instanceCount;
+    }
 }
 
 SDLPlayer::~SDLPlayer()
 {
-    quit = true;
-    audioCV.notify_all();
-    videoCV.notify_all();
-
-    if (audioThread.joinable()) audioThread.join();
-    if (videoThread.joinable()) videoThread.join();
-
+    Stop();
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_CloseAudioDevice(audioDevice);
-    SDL_Quit();
+
+    {
+        std::lock_guard<std::mutex> lock(m_initMutex);
+        if (--s_instanceCount == 0) {
+            SDL_Quit();
+        }
+    }
 
     avcodec_free_context(&audioCodecContext);
     avcodec_free_context(&videoCodecContext);
@@ -33,14 +44,6 @@ SDLPlayer::~SDLPlayer()
 
 void SDLPlayer::Init(const std::string& name)
 {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) < 0) {
-        std::cerr << "SDL initialization failed: " << SDL_GetError() << std::endl;
-        return;
-    }
-
-    // 初始化 FFmpeg
-    av_register_all();
-
     // 创建音频设备
     audioSpec.freq = 44100;
     audioSpec.format = AUDIO_S16SYS;
@@ -87,12 +90,23 @@ void SDLPlayer::Init(const std::string& name)
 
 void SDLPlayer::Play()
 {
+    quit = false;
     // SDL main loop
     while (!quit) {
         HandleEvents();
         Render();
         SDL_Delay(10); // Delay to reduce CPU usage
     }
+}
+
+void SDLPlayer::Stop()
+{
+    quit = true;
+    audioCV.notify_all();
+    videoCV.notify_all();
+
+    if (audioThread.joinable()) audioThread.join();
+    if (videoThread.joinable()) videoThread.join();
 }
 
 void SDLPlayer::ProcessVideo(uint8_t* buffer, int bufSize)
@@ -116,17 +130,17 @@ void SDLPlayer::ProcessAudio(uint8_t* buffer, int bufSize)
 void SDLPlayer::InitDecoder()
 {
     // 初始化音频解码器
-    AVCodec* audioCodec = avcodec_find_decoder(AV_CODEC_ID_AAC);
+    const AVCodec* audioCodec = avcodec_find_decoder(AV_CODEC_ID_AAC);
     audioCodecContext = avcodec_alloc_context3(audioCodec);
     avcodec_open2(audioCodecContext, audioCodec, nullptr);
     if (audioCodecContext->sample_rate == 0) {
         audioCodecContext->sample_rate = 44100;
-        audioCodecContext->channels = 2;
-        audioCodecContext->channel_layout = av_get_default_channel_layout(2);
+        //audioCodecContext->channels = 2;
+        //audioCodecContext->channel_layout = av_get_default_channel_layout(2);
     }
 
     // 初始化视频解码器
-    AVCodec* videoCodec = avcodec_find_decoder(AV_CODEC_ID_H264);
+    const AVCodec* videoCodec = avcodec_find_decoder(AV_CODEC_ID_H264);
     videoCodecContext = avcodec_alloc_context3(videoCodec);
     avcodec_open2(videoCodecContext, videoCodec, nullptr);
 
@@ -223,6 +237,14 @@ void SDLPlayer::DecodeAndQueueAudio(const std::vector<uint8_t>& data)
     av_packet_unref(&packet);
 }
 
+// 判断事件是否属于指定窗口
+bool SDLPlayer::IsEventForWindow(const SDL_Event& e, SDL_Window* window) 
+{
+    return e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP
+        ? e.motion.windowID == SDL_GetWindowID(window)
+        : e.window.windowID == SDL_GetWindowID(window);
+}
+
 void SDLPlayer::HandleEvents()
 {
     SDL_Event event;
@@ -233,6 +255,11 @@ void SDLPlayer::HandleEvents()
         case SDL_QUIT:
             quit = true;
             break;
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+                quit = true;
+            }
+            break;
         case SDL_MOUSEBUTTONDOWN:
             OnMouseDown(event.button);
             break;
@@ -240,7 +267,8 @@ void SDLPlayer::HandleEvents()
             OnMouseUp(event.button);
             break;
         case SDL_MOUSEMOTION:
-            OnMouseMove(event.motion);
+            if(IsEventForWindow(event, window))
+                OnMouseMove(event.motion);
             break;
         case SDL_KEYDOWN:
             OnKeyDown(event.key);
@@ -263,7 +291,7 @@ void SDLPlayer::OnMouseDown(const SDL_MouseButtonEvent& buttonEvent)
     xdiff = (char)(buttonEvent.x - last_x);
     ydiff = (char)(buttonEvent.y - last_y);
 
-    m_sink->GetUIBCManager()->SendHIDMouse(MOUSE_BUTTON_DOWN, xdiff, ydiff);
+    m_sink->SendHIDMouse(MOUSE_BUTTON_DOWN, xdiff, ydiff);
     last_x = buttonEvent.x;
     last_y = buttonEvent.y;
 }
@@ -277,20 +305,20 @@ void SDLPlayer::OnMouseUp(const SDL_MouseButtonEvent& buttonEvent)
     xdiff = (char)(buttonEvent.x - last_x);
     ydiff = (char)(buttonEvent.y - last_y);
 
-    m_sink->GetUIBCManager()->SendHIDMouse(MOUSE_BUTTON_UP, xdiff, ydiff);
+    m_sink->SendHIDMouse(MOUSE_BUTTON_UP, xdiff, ydiff);
     last_x = buttonEvent.x;
     last_y = buttonEvent.y;
 }
 
 void SDLPlayer::OnMouseMove(const SDL_MouseMotionEvent& motionEvent)
 {
-    //std::cout << "Mouse Move to (" << motionEvent.x << ", " << motionEvent.y << ")" << std::endl;
+    //std::cout << "SDLPlayer: " << this << " Mouse Move to (" << motionEvent.x << ", " << motionEvent.y << ")" << std::endl;
 
     char xdiff, ydiff;
     xdiff = (char)(motionEvent.x - last_x);
     ydiff = (char)(motionEvent.y - last_y);
 
-    m_sink->GetUIBCManager()->SendHIDMouse(MOUSE_MOTION, xdiff, ydiff);
+    m_sink->SendHIDMouse(MOUSE_MOTION, xdiff, ydiff);
     last_x = motionEvent.x;
     last_y = motionEvent.y;
 }
@@ -315,7 +343,7 @@ void SDLPlayer::OnKeyDown(const SDL_KeyboardEvent& keyEvent)
     }
 
     unsigned short keyboardValue = KeyCodeToKeyValue(keyEvent.keysym.sym);
-    m_sink->GetUIBCManager()->SendHIDKeyboard(KEYBOARD_DOWN, modType, keyboardValue);
+    m_sink->SendHIDKeyboard(KEYBOARD_DOWN, modType, keyboardValue);
 }
 
 void SDLPlayer::OnKeyUp(const SDL_KeyboardEvent& keyEvent)
@@ -334,7 +362,7 @@ void SDLPlayer::OnKeyUp(const SDL_KeyboardEvent& keyEvent)
     }
     
     unsigned short keyboardValue = KeyCodeToKeyValue(keyEvent.keysym.sym);
-    m_sink->GetUIBCManager()->SendHIDKeyboard(KEYBOARD_UP, modType, keyboardValue);
+    m_sink->SendHIDKeyboard(KEYBOARD_UP, modType, keyboardValue);
 }
 
 unsigned short SDLPlayer::KeyCodeToKeyValue(const SDL_Keycode&code)

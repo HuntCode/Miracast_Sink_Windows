@@ -1,11 +1,6 @@
 /*
 依次输入188字节的MPEGTS数据，解析为H264+AAC数据
-
-by Tam.Xie
-
-2020.07.27
 */
-
 #include "pch.h"
 #include <cassert>
 #include <cstdlib>    // for malloc free size_t

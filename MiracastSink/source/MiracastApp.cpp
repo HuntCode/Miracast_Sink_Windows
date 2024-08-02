@@ -25,7 +25,7 @@ void MiracastApp::StartMiracast()
 
 	if (m_miracastWifiDirect == nullptr)
 	{
-		m_miracastWifiDirect = new MiracastWiFiDirect();
+		m_miracastWifiDirect = std::make_shared<MiracastWiFiDirect>();
 		m_miracastWifiDirect->Start();
 	}
 
@@ -45,8 +45,8 @@ void MiracastApp::StopMiracast()
 
 	if (m_miracastWifiDirect)
 	{
-		delete m_miracastWifiDirect;
-		m_miracastWifiDirect = nullptr;
+		m_miracastWifiDirect->Stop();
+		m_miracastWifiDirect.reset();
 	}
 
 }

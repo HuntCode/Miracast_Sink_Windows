@@ -1,5 +1,4 @@
 #pragma once
-#include "EventLoopManager.h"
 #include "MiracastWiFiDirect.h"
 
 class MiracastApp
@@ -19,6 +18,5 @@ private:
 
 	std::mutex m_mtxStop;
 	bool m_start;
-	EventLoopManager m_eventLoopManager;
-	MiracastWiFiDirect* m_miracastWifiDirect;
+	std::shared_ptr<MiracastWiFiDirect> m_miracastWifiDirect;
 };

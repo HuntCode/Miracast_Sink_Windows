@@ -24,12 +24,6 @@
     <ClInclude Include="include\MiracastSink.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\RTSPResponse.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\WXSafeQueue.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\WXBase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -39,13 +33,19 @@
     <ClInclude Include="include\TSDemux.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\EventLoopManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\MiracastWiFiDirect.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\UIBCManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\IMiracastCallback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RTPManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RTSPManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -54,9 +54,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\MiracastApp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="source\RTSPResponse.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\TSDemux.cpp">
@@ -75,6 +72,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\UIBCManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\RTPManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\RTSPManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
