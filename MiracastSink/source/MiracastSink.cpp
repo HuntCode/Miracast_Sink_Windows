@@ -1,5 +1,4 @@
-#include "pch.h"
-#include <random>
+﻿#include <random>
 
 #include "MiracastSink.h"
 
@@ -40,12 +39,32 @@ void MiracastSink::SetMiracastCallback(std::shared_ptr<IMiracastCallback> callba
 	m_rtspManager->SetMiracastCallback(callback);
 }
 
-void MiracastSink::SendHIDMouse(unsigned char type, char xdiff, char ydiff)
+int MiracastSink::GetUIBCCategory()
 {
-	m_rtspManager->SendHIDMouse(type, xdiff, ydiff);
+	return m_rtspManager->GetUIBCCategory();
+}
+
+void MiracastSink::SendHIDMouse(unsigned char type, char xdiff, char ydiff, char wdiff)
+{
+	m_rtspManager->SendHIDMouse(type, xdiff, ydiff, wdiff);
 }
 
 void MiracastSink::SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short keyboardValue)
 {
 	m_rtspManager->SendHIDKeyboard(type, modType, keyboardValue);
+}
+
+void MiracastSink::SendHIDMultiTouch(const char* multiTouchMessage)
+{
+	m_rtspManager->SendHIDMultiTouch(multiTouchMessage);
+}
+
+bool MiracastSink::SupportMultiTouch()
+{
+	return m_rtspManager->SupportMultiTouch();
+}
+
+void MiracastSink::SendGenericTouch(const char* inEventDesc, double widthRatio, double heightRatio)
+{
+	return m_rtspManager->SendGenericTouch(inEventDesc, widthRatio, heightRatio);
 }

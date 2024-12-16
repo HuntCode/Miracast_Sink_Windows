@@ -1,8 +1,6 @@
-#include "pch.h"
-#include "MiracastWiFiDirect.h"
+ï»¿#include "MiracastWiFiDirect.h"
 
-#define TS_TYPE_VIDEO 1
-#define TS_TYPE_AUDIO 2
+#ifdef WIN32
 
 char* WcharToChar(wchar_t* wc)
 {
@@ -37,40 +35,61 @@ std::string GetIPByMac(char* cmd, wchar_t* in_mac)
         char mac[32] = { 0 };
         strcat_s(ptr, cmd);
 
+        // è½¬æ¢wchar_t*åˆ°char*
         char* temp_mac = WcharToChar(in_mac);
-        temp_mac[11] = '\0';
+
+        // æˆªå–å‰4æ®µï¼ˆå‰11ä¸ªå­—ç¬¦ï¼‰å’Œç¬¬2åˆ°ç¬¬5æ®µï¼ˆä»ç¬¬3ä¸ªå­—ç¬¦å¼€å§‹çš„11ä¸ªå­—ç¬¦ï¼‰
+        char mac_prefix[12] = { 0 };
+        strncpy(mac_prefix, temp_mac, 11);
+        mac_prefix[11] = '\0';
+
+        char mac_middle[12] = { 0 };
+        strncpy(mac_middle, temp_mac + 3, 11);
+        mac_middle[11] = '\0';
+
+        delete[] temp_mac;  // é‡Šæ”¾å†…å­˜
+
         if ((file = _popen(ptr, "r")) != NULL)
         {
             while (fgets(tmp, 1024, file) != NULL)
             {
                 sscanf(tmp, "%s   %s  ", ip, mac);
                 Replace(mac, '-', ':');
-                mac[11] = '\0';
-                if (strcmp(temp_mac, mac) == 0)
+
+                // æˆªå–åŒæ ·çš„ä¸¤éƒ¨åˆ†è¿›è¡Œæ¯”è¾ƒ
+                char mac_compare_prefix[12] = { 0 };
+                strncpy(mac_compare_prefix, mac, 11);
+                mac_compare_prefix[11] = '\0';
+
+                char mac_compare_middle[12] = { 0 };
+                strncpy(mac_compare_middle, mac + 3, 11);
+                mac_compare_middle[11] = '\0';
+
+                // å¦‚æœåŒ¹é…å‰4æ®µæˆ–ç¬¬2åˆ°ç¬¬5æ®µï¼Œè¿”å›IP
+                if (strcmp(mac_prefix, mac_compare_prefix) == 0 || strcmp(mac_middle, mac_compare_middle) == 0)
                 {
                     result = ip;
-                    delete temp_mac;
                     _pclose(file);
                     return result;
                 }
             }
             _pclose(file);
         }
-        delete temp_mac;
-        num++;
 
-        Sleep(1000);
+        num++;
+        Sleep(200);
     }
 
     return result;
 }
 
+
 static unsigned int IPToStreamID(const std::string& ipAddress) {
     struct in_addr addr;
 
-    // ½« IP µØÖ·×Ö·û´®×ª»»ÎªÍøÂç×Ö½ÚĞòµÄ¶ş½øÖÆ¸ñÊ½
+    // å°† IP åœ°å€å­—ç¬¦ä¸²è½¬æ¢ä¸ºç½‘ç»œå­—èŠ‚åºçš„äºŒè¿›åˆ¶æ ¼å¼
     if (inet_pton(AF_INET, ipAddress.c_str(), &addr) == 1) {
-        // ½«ÍøÂç×Ö½ÚĞòµÄµØÖ·×ª»»ÎªÖ÷»ú×Ö½ÚĞòµÄÎŞ·ûºÅÕûÊı
+        // å°†ç½‘ç»œå­—èŠ‚åºçš„åœ°å€è½¬æ¢ä¸ºä¸»æœºå­—èŠ‚åºçš„æ— ç¬¦å·æ•´æ•°
         return ntohl(addr.s_addr);
     }
     else {
@@ -103,67 +122,111 @@ void MiracastWiFiDirect::Stop()
     m_receiver.StatusChanged(m_statusChangedToken);
 }
 
+void MiracastWiFiDirect::Disconnect(uint32_t streamId)
+{
+    auto sink = GetSink(streamId);
+    if (sink) {
+        sink->Stop();
+    }
+}
+
+void MiracastWiFiDirect::SetMiracastCallback(std::shared_ptr<IMiracastCallback> callback)
+{
+    m_miracastCallback = callback;
+}
+
 void MiracastWiFiDirect::OnConnect(uint32_t streamId)
 {
-
+    if (m_miracastCallback) {
+        m_miracastCallback->OnConnect(streamId);
+    }
 }
 
 void MiracastWiFiDirect::OnDisconnect(uint32_t streamId)
 {
-    std::lock_guard<std::mutex> lock(mapMutex);
-    auto sdlPlayer = GetSDLPlayer(streamId);
-    if (sdlPlayer) {
-        sdlPlayer->Stop();
-        RemoveSDLPlayer(streamId);
+    if (m_miracastCallback) {
+        m_miracastCallback->OnDisconnect(streamId);
     }
 
     // Note: 
-    // 1)ÒªÔÚRTSP¶Ï¿ªºóÍ¨¹ı»Øµ÷¹Ø±Õconn£¬·ñÔòÄ³Ğ©ÊÖ»ú£¬Èçvivo¿ÉÄÜ»á½øĞĞWiFi DirectÖØÁ¬
-    //   ´ËÊ±Âß¼­´íÎó£¬conn±»Õ¼ÓÃ£¬ºóĞøÍ¶ÆÁÎŞ·¨½øĞĞ
-    // 2)Ã²ËÆÒÀÈ»µÍ¸ÅÂÊ³öÏÖWiFi DirectÖØÁ¬£¬Ìí¼ÓÒ»¸öÑÓ³Ù£¬ÔÙ¹Ø±Õconn£¿
+    // 1)è¦åœ¨RTSPæ–­å¼€åé€šè¿‡å›è°ƒå…³é—­connï¼Œå¦åˆ™æŸäº›æ‰‹æœºï¼Œå¦‚vivoå¯èƒ½ä¼šè¿›è¡ŒWiFi Directé‡è¿
+    //   æ­¤æ—¶é€»è¾‘é”™è¯¯ï¼Œconnè¢«å ç”¨ï¼Œåç»­æŠ•å±æ— æ³•è¿›è¡Œ
+    // 2)è²Œä¼¼ä¾ç„¶ä½æ¦‚ç‡å‡ºç°WiFi Directé‡è¿ï¼Œæ·»åŠ ä¸€ä¸ªå»¶è¿Ÿï¼Œå†å…³é—­connï¼Ÿ
     Sleep(100);
 
     auto conn = GetConnection(streamId);
     if (conn){
+        std::cout << "WiFiDirect Close Connection! streamId=" << streamId << std::endl;
         conn->Close();
         RemoveConnection(streamId);
+    }
+    else {
+        std::cout << "WiFiDirect Connection not found! streamId=" << streamId << std::endl;
     }
         
 }
 
 void MiracastWiFiDirect::OnPlay(uint32_t streamId)
 {
-    std::thread([this, streamId]() {
-        
-        auto sink = GetSink(streamId);
-        auto sdlPlayer = GetSDLPlayer(streamId);
-        if (sdlPlayer == nullptr) {
-            sdlPlayer = std::make_shared<SDLPlayer>(1920, 1080, sink);
-            sdlPlayer->Init("SDLPlayer");
-
-            std::lock_guard<std::mutex> lock(mapMutex);
-            AddSDLPlayer(streamId, sdlPlayer);
-        }
-
-
-        sdlPlayer->Play();
-
-        if (sink)
-            sink->Stop();
-
-        }).detach();
+    if (m_miracastCallback) {
+        m_miracastCallback->OnPlay(streamId);
+    }
 }
 
 void MiracastWiFiDirect::OnData(uint32_t streamId, int type, uint8_t* buffer, int bufSize)
 {
-    auto sdlPlayer = GetSDLPlayer(streamId);
-    if (sdlPlayer) {
-        if (type == TS_TYPE_VIDEO) {
-            sdlPlayer->ProcessVideo(buffer, bufSize);
-        }
-        else if (type == TS_TYPE_AUDIO) {
-            sdlPlayer->ProcessAudio(buffer, bufSize);
-        }
+    if (m_miracastCallback) {
+        m_miracastCallback->OnData(streamId, type, buffer, bufSize);
+    }
+}
+
+int MiracastWiFiDirect::GetUIBCCategory(uint32_t streamId)
+{
+    auto sink = GetSink(streamId);
+    if (sink) {
+        return sink->GetUIBCCategory();
+    }
+    return -1; // not support
+}
+
+void MiracastWiFiDirect::SendHIDMouse(uint32_t streamId, unsigned char type, char xdiff, char ydiff, char wdiff)
+{
+    auto sink = GetSink(streamId);
+    if (sink) {
+        sink->SendHIDMouse(type, xdiff, ydiff, wdiff);
+    } 
+}
+
+void MiracastWiFiDirect::SendHIDKeyboard(uint32_t streamId, unsigned char type, unsigned char modType, unsigned short keyboardValue)
+{
+    auto sink = GetSink(streamId);
+    if (sink) {
+        sink->SendHIDKeyboard(type, modType, keyboardValue);
+    }
+}
+
+void MiracastWiFiDirect::SendHIDMultiTouch(uint32_t streamId, const char* multiTouchMessage)
+{
+    auto sink = GetSink(streamId);
+    if (sink) {
+        sink->SendHIDMultiTouch(multiTouchMessage);
+    }
+}
+
+bool MiracastWiFiDirect::SupportMultiTouch(uint32_t streamId)
+{
+    auto sink = GetSink(streamId);
+    if (sink) {
+        return sink->SupportMultiTouch();
+    }
+    return false;
+}
+
+void MiracastWiFiDirect::SendGenericTouch(uint32_t streamId, const char* inEventDesc, double widthRatio, double heightRatio)
+{
+    auto sink = GetSink(streamId);
+    if (sink) {
+        sink->SendGenericTouch(inEventDesc, widthRatio, heightRatio);
     }
 }
 
@@ -183,14 +246,15 @@ void MiracastWiFiDirect::OnStatusChanged(MiracastReceiver sender, IInspectable a
     case MiracastReceiverListeningStatus::Listening:
     {
         // Note: 
-        // 1£©³õÊ¼»¯Ê±²»»á½øÈë¸Ã×´Ì¬
-        // 2£©ÒÑÓĞÉè±¸Á¬½ÓÊ±£¬ºóĞøÉè±¸Ö»»á´¥·¢connected×´Ì¬
-        // 3£©Ö»ÓĞ×îºóÒ»Ì¨Éè±¸¶Ï¿ª£¬²Å»á½øÈë¸Ã×´Ì¬
-        // ×îºóÇåÀíconnµÄ±£µ×·½·¨£¬±ÜÃâµÍ¸ÅÂÊ³öÏÖµÄconnÕ¼ÓÃÇé¿ö£¬Ó°ÏìºóĞøÍ¶ÆÁ
+        // 1ï¼‰åˆå§‹åŒ–æ—¶ä¸ä¼šè¿›å…¥è¯¥çŠ¶æ€
+        // 2ï¼‰å·²æœ‰è®¾å¤‡è¿æ¥æ—¶ï¼Œåç»­è®¾å¤‡åªä¼šè§¦å‘connectedçŠ¶æ€
+        // 3ï¼‰åªæœ‰æœ€åä¸€å°è®¾å¤‡æ–­å¼€ï¼Œæ‰ä¼šè¿›å…¥è¯¥çŠ¶æ€
+        // æœ€åæ¸…ç†connçš„ä¿åº•æ–¹æ³•ï¼Œé¿å…ä½æ¦‚ç‡å‡ºç°çš„connå ç”¨æƒ…å†µï¼Œå½±å“åç»­æŠ•å±
         for (auto it = m_connMap.begin(); it != m_connMap.end(); ++it) {
             std::shared_ptr<MiracastReceiverConnection> value = it->second;
             value->Close();
         }
+        std::wcout << "m_connMap.clear()" << std::endl;
         m_connMap.clear();
 
         std::wcout << "MiracastReceiverListeningStatus Listening" << std::endl;
@@ -220,7 +284,6 @@ void MiracastWiFiDirect::OnStatusChanged(MiracastReceiver sender, IInspectable a
         std::wcout << "Unknown MiracastReceiverListeningStatus" << std::endl;
         break;
     }
-
 }
 
 void MiracastWiFiDirect::OnConnectionCreated(MiracastReceiverSession sender, MiracastReceiverConnectionCreatedEventArgs args)
@@ -245,7 +308,7 @@ void MiracastWiFiDirect::OnConnectionCreated(MiracastReceiverSession sender, Mir
             mirascast_sink->Start(remote_ip);
     
             {
-                std::lock_guard<std::mutex> lock(mapMutex);
+                std::lock_guard<std::mutex> lock(m_mapMutex);
                 AddConnection(streamId, std::make_shared<MiracastReceiverConnection>(args.Connection()));
                 AddSink(streamId, mirascast_sink);
             }
@@ -253,6 +316,7 @@ void MiracastWiFiDirect::OnConnectionCreated(MiracastReceiverSession sender, Mir
         else
         {
             std::cout << device_name << ": ARP Get IP error" << std::endl;
+            args.Connection().Close();
         }
         delete device_name;
         device_name = nullptr;
@@ -275,14 +339,8 @@ void MiracastWiFiDirect::OnDisconnected(MiracastReceiverSession sender, Miracast
         {
             uint32_t streamId = IPToStreamID(remote_ip);
             {
-                std::lock_guard<std::mutex> lock(mapMutex);
+                std::lock_guard<std::mutex> lock(m_mapMutex);
                 RemoveSink(streamId);
-
-                auto sdlPlayer = GetSDLPlayer(streamId);
-                if (sdlPlayer) {
-                    sdlPlayer->Stop();
-                    RemoveSDLPlayer(streamId);
-                }
             }
         }
         else
@@ -366,7 +424,7 @@ void MiracastWiFiDirect::ProcessSession()
     m_session.Disconnected({ std::bind(&MiracastWiFiDirect::OnDisconnected, this, std::placeholders::_1,std::placeholders::_2) });
     m_session.MediaSourceCreated({ std::bind(&MiracastWiFiDirect::OnMediaSourceCreated, this, std::placeholders::_1,std::placeholders::_2) });
 
-    // m_session.Start()×´Ì¬»á×èÈû£¬×èÈûÊ±³¤²»È·¶¨
+    // m_session.Start()çŠ¶æ€ä¼šé˜»å¡ï¼Œé˜»å¡æ—¶é•¿ä¸ç¡®å®š
     std::thread([this]() {
         MiracastReceiverSessionStartResult result = m_session.Start();
         MiracastReceiverSessionStartStatus status = result.Status();
@@ -416,7 +474,7 @@ std::shared_ptr<MiracastReceiverConnection> MiracastWiFiDirect::GetConnection(ui
     if (it != m_connMap.end()) {
         return it->second;
     }
-    return nullptr; // Èç¹ûÃ»ÓĞÕÒµ½£¬·µ»Ø nullptr
+    return nullptr; // å¦‚æœæ²¡æœ‰æ‰¾åˆ°ï¼Œè¿”å› nullptr
 }
 
 void MiracastWiFiDirect::AddSink(uint32_t streamId, std::shared_ptr<MiracastSink> sink)
@@ -435,24 +493,7 @@ std::shared_ptr<MiracastSink> MiracastWiFiDirect::GetSink(uint32_t streamId)
     if (it != m_sinkMap.end()) {
         return it->second;
     }
-    return nullptr; // Èç¹ûÃ»ÓĞÕÒµ½£¬·µ»Ø nullptr
+    return nullptr; // å¦‚æœæ²¡æœ‰æ‰¾åˆ°ï¼Œè¿”å› nullptr
 }
 
-void MiracastWiFiDirect::AddSDLPlayer(uint32_t streamId, std::shared_ptr<SDLPlayer> sdlPlayer)
-{
-    m_playerMap[streamId] = std::move(sdlPlayer);
-}
-
-void MiracastWiFiDirect::RemoveSDLPlayer(uint32_t streamId)
-{
-    m_playerMap.erase(streamId);
-}
-
-std::shared_ptr<SDLPlayer> MiracastWiFiDirect::GetSDLPlayer(uint32_t streamId)
-{
-    auto it = m_playerMap.find(streamId);
-    if (it != m_playerMap.end()) {
-        return it->second;
-    }
-    return nullptr; // Èç¹ûÃ»ÓĞÕÒµ½£¬·µ»Ø nullptr
-}
+#endif

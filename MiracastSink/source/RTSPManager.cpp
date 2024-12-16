@@ -1,13 +1,12 @@
-#include "pch.h"
-#include "RTSPManager.h"
+ï»¿#include "RTSPManager.h"
 #include <regex>
 
 static unsigned int IPToStreamID(const std::string& ipAddress) {
 	struct in_addr addr;
 
-	// ½« IP µØÖ·×Ö·û´®×ª»»ÎªÍøÂç×Ö½ÚĞòµÄ¶ş½øÖÆ¸ñÊ½
+	// å°† IP åœ°å€å­—ç¬¦ä¸²è½¬æ¢ä¸ºç½‘ç»œå­—èŠ‚åºçš„äºŒè¿›åˆ¶æ ¼å¼
 	if (inet_pton(AF_INET, ipAddress.c_str(), &addr) == 1) {
-		// ½«ÍøÂç×Ö½ÚĞòµÄµØÖ·×ª»»ÎªÖ÷»ú×Ö½ÚĞòµÄÎŞ·ûºÅÕûÊı
+		// å°†ç½‘ç»œå­—èŠ‚åºçš„åœ°å€è½¬æ¢ä¸ºä¸»æœºå­—èŠ‚åºçš„æ— ç¬¦å·æ•´æ•°
 		return ntohl(addr.s_addr);
 	}
 	else {
@@ -16,9 +15,12 @@ static unsigned int IPToStreamID(const std::string& ipAddress) {
 	}
 }
 
-RTSPManager::RTSPManager(): m_userAgent("HHServer"), m_start(false)
+RTSPManager::RTSPManager(): 
+	m_uibcPort(0),
+	m_userAgent("HHServer"), 
+	m_start(false)
 {
-	m_rtpManager = std::make_shared<RTPManager>();
+	m_rtpManager = std::make_shared<RTPManager>(this);
 }
 
 RTSPManager::~RTSPManager()
@@ -39,18 +41,18 @@ void RTSPManager::Start(const std::string& ip)
 
 	m_sourceIP = ip;
 
-	m_rtspClient = std::make_shared<hv::TcpClient>();
-	m_rtspClient->createsocket(7236, m_sourceIP.c_str());
-	m_rtspClient->onConnection = std::bind(&RTSPManager::OnConnection, this, std::placeholders::_1);
-	m_rtspClient->onMessage = std::bind(&RTSPManager::OnMessage, this, std::placeholders::_1, std::placeholders::_2);
-	m_rtspClient->start();
+	//m_rtspClient = std::make_shared<hv::TcpClient>();
+	m_rtspClient.createsocket(7236, m_sourceIP.c_str());
+	m_rtspClient.onConnection = std::bind(&RTSPManager::OnConnection, this, std::placeholders::_1);
+	m_rtspClient.onMessage = std::bind(&RTSPManager::OnMessage, this, std::placeholders::_1, std::placeholders::_2);
+	m_rtspClient.start();
 
 	std::cout << "Start RTSP Connect " << m_sourceIP + ":7236" << std::endl;
 }
 
 void RTSPManager::Stop()
 {
-	{
+    {
 		std::lock_guard<std::mutex> lg(m_mtxStop);
 
 		if (!m_start)
@@ -65,9 +67,9 @@ void RTSPManager::Stop()
 	size = BuildTearDown(req.get(), 2048);
 	SendMsg(req, size);
 
-	if (m_rtspClient && m_rtspClient->isConnected())
+	if (/*m_rtspClient && */m_rtspClient.isConnected())
 	{
-		m_rtspClient->stop();
+		m_rtspClient.stop(false);
 	}
 
 	m_rtpManager->Stop();
@@ -91,14 +93,58 @@ void RTSPManager::SetMiracastCallback(std::shared_ptr<IMiracastCallback> callbac
 	m_rtpManager->SetMiracastCallback(callback);
 }
 
-void RTSPManager::SendHIDMouse(unsigned char type, char xdiff, char ydiff)
+int RTSPManager::GetUIBCCategory()
 {
-	m_uibcManager->SendHIDMouse(type, xdiff, ydiff);
+	if (m_uibcManager) {
+		return m_uibcManager->GetUIBCCategory();
+	}
+
+	return -1;
+}
+
+void RTSPManager::SendHIDMouse(unsigned char type, char xdiff, char ydiff, char wdiff)
+{
+	if (m_uibcManager) {
+		m_uibcManager->SendHIDMouse(type, xdiff, ydiff, wdiff);
+	}
 }
 
 void RTSPManager::SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short keyboardValue)
 {
-	m_uibcManager->SendHIDKeyboard(type, modType, keyboardValue);
+	if (m_uibcManager) {
+		m_uibcManager->SendHIDKeyboard(type, modType, keyboardValue);
+	}
+}
+
+void RTSPManager::SendHIDMultiTouch(const char* multiTouchMessage)
+{
+	if (m_uibcManager) {
+		m_uibcManager->SendHIDMultiTouch(multiTouchMessage);
+	}
+}
+
+bool RTSPManager::SupportMultiTouch()
+{
+	if (m_uibcManager) {
+		return m_uibcManager->SupportMultiTouch();
+	}
+	return false;
+}
+
+void RTSPManager::SendGenericTouch(const char* inEventDesc, double widthRatio, double heightRatio)
+{
+	if (m_uibcManager) {
+		m_uibcManager->SendGenericTouch(inEventDesc, widthRatio, heightRatio);
+	}
+}
+
+void RTSPManager::RequestIdr()
+{
+	std::shared_ptr<char> req(new char[2048]);
+	int size = 0;
+	size = BuildIdrRequest(req.get(), 2048);
+
+	SendMsg(req, size);
 }
 
 void RTSPManager::OnConnection(const hv::SocketChannelPtr& conn)
@@ -106,13 +152,19 @@ void RTSPManager::OnConnection(const hv::SocketChannelPtr& conn)
 	std::string sourceIP = conn->peeraddr();
 	if (conn->isConnected())
 	{
+#if defined(WIN32) && defined(_DEBUG)
 		std::cout << "MiracastSink RTSP onConnection: " << m_deviceName << std::endl;
+#endif
+
 		if (m_miracastCallback)
 			m_miracastCallback->OnConnect(m_streamId);
 	}
 	else
 	{
+#if defined(WIN32) && defined(_DEBUG)
 		std::cout << "MiracastSink RTSP onDisconnected: " << m_deviceName << std::endl;
+#endif
+
 		if (m_miracastCallback)
 			m_miracastCallback->OnDisconnect(m_streamId);
 	}
@@ -122,8 +174,9 @@ void RTSPManager::OnMessage(const hv::SocketChannelPtr& channel, hv::Buffer* msg
 {
 	std::string s((char*)msg->data(), msg->size());
 
-	std::cout << "RTSP OnMessage: " << std::endl;
-	std::cout << s << std::endl;
+#if (defined(WIN32) && defined(_DEBUG))
+	DebugL << "RTSP OnMessage: " << "\n" << s << std::endl;
+#endif
 
 	const char* buf = s.c_str();
 	ParseResponse(buf);
@@ -164,6 +217,8 @@ void RTSPManager::ParseResponse(const char* buffer)
 		ParseSessionID(message);
 		if (message.find("GET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0") != std::string::npos)
 			m_method = GET_PARAMETER;
+
+		ParseRTCPServerPort(message);
 
 		return;
 	}
@@ -260,6 +315,31 @@ bool RTSPManager::ParseSetParameter(std::string& msg)
 	{
 		m_uibcPort = GetUIBCPort(msg);
 		std::cout << "UIBC Port: " << m_uibcPort << std::endl;
+
+		if (m_uibcPort > 0) {
+			if (m_uibcManager == nullptr) {
+				m_uibcManager = std::make_shared<UIBCManager>();
+				// åˆ¤æ–­ä½¿ç”¨HIDCè¿˜æ˜¯GENERIC
+				m_uibcManager->SetUIBCCategory(CheckUIBCCategory(msg));
+				m_uibcManager->ConnectUIBC(m_sourceIP, m_uibcPort);
+			}
+		}
+	}
+	else if (msg.find("wfd_uibc_setting: disable") != std::string::npos)
+	{
+		if (m_uibcManager != nullptr)
+		{
+			m_uibcManager->SetEnable(false);
+		}
+		m_method = SET_PARAMETER;
+	}
+	else if (msg.find("wfd_uibc_setting: enable") != std::string::npos)
+	{
+		if (m_uibcManager != nullptr)
+		{
+			m_uibcManager->SetEnable(true);
+		}
+		m_method = SET_PARAMETER;
 	}
 
 	return true;
@@ -292,6 +372,45 @@ bool RTSPManager::ParseCSeq(std::string& message)
 	}
 
 	return false;
+}
+
+void RTSPManager::ParseRTCPServerPort(std::string& message)
+{
+	const std::string transportKey = "Transport:";
+	const std::string serverPortKey = "server_port=";
+
+	// Find "Transport:" line
+	size_t transportPos = message.find(transportKey);
+	if (transportPos == std::string::npos) {
+		//std::cerr << "Transport field not found in RTSP response!" << std::endl;
+		return;
+	}
+
+	// Extract the Transport line
+	size_t lineEnd = message.find('\n', transportPos);
+	std::string transportLine = message.substr(transportPos, lineEnd - transportPos);
+
+	// Find "server_port=" in the Transport line
+	size_t serverPortPos = transportLine.find(serverPortKey);
+	if (serverPortPos == std::string::npos) {
+		//std::cerr << "server_port field not found in Transport line!" << std::endl;
+		return;
+	}
+
+	// Extract the server_port value (e.g., "20520-20521")
+	size_t portStart = serverPortPos + serverPortKey.length();
+	size_t portEnd = transportLine.find(';', portStart);
+	std::string serverPorts = transportLine.substr(portStart, portEnd - portStart);
+
+	// Split serverPorts on '-' to get RTP and RTCP ports
+	size_t dashPos = serverPorts.find('-');
+	if (dashPos == std::string::npos) {
+		//std::cerr << "Invalid server_port format!" << std::endl;
+		return;
+	}
+
+	std::string rtcpPortStr = serverPorts.substr(dashPos + 1);
+	m_rtpManager->SetRTCPServerPort(std::stoi(rtcpPortStr));
 }
 
 void RTSPManager::HandleOptions()
@@ -330,12 +449,6 @@ void RTSPManager::HandleSetParamter()
 	// M4
 	size = BuildSetParamterResponse(res.get(), 2048, 0);
 	SendMsg(res, size);
-
-	if (m_uibcManager == nullptr)
-	{
-		m_uibcManager = std::make_shared<UIBCManager>();
-		m_uibcManager->ConnectUIBC(m_sourceIP, m_uibcPort);
-	}
 }
 
 void RTSPManager::HandleSetup()
@@ -371,15 +484,6 @@ void RTSPManager::HandleTearDown()
 	Stop();
 }
 
-void RTSPManager::RequestIdr()
-{
-	std::shared_ptr<char> req(new char[2048]);
-	int size = 0;
-	size = BuildIdrRequest(req.get(), 2048);
-
-	SendMsg(req, size);
-}
-
 int RTSPManager::BuildOptionResponse(const char* buf, int bufSize)
 {
 	memset((void*)buf, 0, bufSize);
@@ -407,15 +511,22 @@ int RTSPManager::BuildOptionRequest(const char* buf, int bufSize)
 	return strlen(buf);
 }
 
+//30 00 02 02 00000040 00000000 00000000 00 0000 0000 00 none none
+//28 00 02 02 00000020 00000000 00000000 00 0000 0000 00
 int RTSPManager::BuildGetParamterResponseM3(const char* buf, int bufSize, uint32_t port)
 {
 	const char* paramter = "wfd_client_rtp_ports: RTP/AVP/UDP;unicast %d 0 mode=play\r\n"
 		"wfd_audio_codecs: LPCM 00000003 00, AAC 0000000f 00, AC3 00000007 00\r\n"
-		"wfd_video_formats: 40 00 01 10 0001bdeb 051557ff 00003fff 10 0000 001f 11 0780 0438, 02 10 0001bdeb 155557ff 00000fff 10 0000 001f 11 0780 0438\r\n"
+		"wfd_video_formats: 28 00 02 10 00000080 00000000 00000000 0A 0000 0000 00 none none\r\n"
+		//"wfd_video_formats: 28 00 01 10 00000080 00000000 00000000 0A 0000 0000 00 none none\r\n"
+		"wfd_connector_type: 07\r\n"
+		"wfd_idr_request_capability: 1\r\n"
 		"wfd_content_protection: none\r\n"
-		"wfd_uibc_capability: input_category_list=HIDC; hidc_cap_list=Keyboard/USB, Mouse/USB, MultiTouch/USB, Gesture/USB, RemoteControl/USB, Joystick/USB; port=none\r\n\r\n";
-	//"wfd_uibc_capability: input_category_list=GENERIC; generic_cap_list=Keyboard, Mouse; port = none\r\n\r\n";
-	//"wfd_uibc_capability: input_category_list=GENERIC, HIDC; generic_cap_list=Keyboard, Mouse, MultiTouch, Gesture, RemoteControl, Joystick; hidc_cap_list=Keyboard/USB, Mouse/USB, MultiTouch/USB, Gesture/USB, RemoteControl/USB, Joystick/USB; port = none\r\n\r\n";
+		"wfd_display_edid: none\r\n"
+		//"wfd_display_edid: 0002 00ffffffffffff004c2d580f333755302b1c0104a53c22783a4935ad5146a9270f5054bfef80714f810081c081809500a9c0b300010122e50050a0a067500820f80c55502100001a000000fd0032901ee13b000a202020202020000000fc004332374a4735780a2020202020000000ff0048544f4b4130313632370a2020011f020313f146901f041303122309070783010000565e00a0a0a029503020350055502100001a023a801871382d40582c450055502100001e5aa000a0a0a046503020350055502100001a6fc200a0a0a055503020350055502100001a0000000000000000000000000000000000000000000000000000000000000000000000001f\r\n"
+		"wfd_uibc_capability: input_category_list=GENERIC,HIDC;generic_cap_list=SingleTouch;hidc_cap_list=Keyboard/USB, Mouse/USB, MultiTouch/USB, Gesture/USB, RemoteControl/USB, Joystick/USB;port=none\r\n\r\n";
+		//"wfd_uibc_capability: input_category_list=GENERIC; generic_cap_list=Keyboard, Mouse; port = none\r\n\r\n";
+		//"wfd_uibc_capability: input_category_list=GENERIC, HIDC; generic_cap_list=Keyboard, Mouse, MultiTouch, Gesture, RemoteControl, Joystick; hidc_cap_list=Keyboard/USB, Mouse/USB, MultiTouch/USB, Gesture/USB, RemoteControl/USB, Joystick/USB; port = none\r\n\r\n";
 
 	char paramters[1500] = { 0 };
 	sprintf(paramters, paramter, port);
@@ -466,11 +577,11 @@ int RTSPManager::BuildSetupRequest(const char* buf, int bufSize, uint16_t port)
 	memset((void*)buf, 0, bufSize);
 	snprintf((char*)buf, bufSize,
 		"SETUP %s RTSP/1.0\r\n"
-		"Transport: RTP/AVP/UDP;unicast;client_port=%d;mode=play\r\n"
+		"Transport: RTP/AVP/UDP;unicast;client_port=%d-%d;mode=play\r\n"
 		"CSeq: %u\r\n"
 		"\r\n",
 		m_rtspUrl.c_str(),
-		port,
+		port,port+1,
 		m_cseq++);
 
 	m_method = PLAY;
@@ -526,20 +637,24 @@ int RTSPManager::BuildIdrRequest(const char* buf, int bufSize)
 		m_cseq++,
 		m_sessionID);
 
+	m_method = NONE;
+
 	return strlen(buf);
 }
 
 void RTSPManager::SendMsg(std::shared_ptr<char> buf, uint32_t size)
 {
-	if (m_rtspClient->isConnected()) {
-		m_rtspClient->send(buf.get(), size);
-		std::cout << "RTSP SendMessage: " << std::endl;
-		std::cout << buf << std::endl;
+	if (m_rtspClient.isConnected()) {
+		m_rtspClient.send(buf.get(), size);
+#if (defined(WIN32) && defined(_DEBUG))
+		DebugL << "RTSP SendMessage: " << "\n" << buf << std::endl;
+#endif
 	}
 }
 
 void RTSPManager::SetupRtpServer()
 {
+	m_rtpManager->SetSourceIP(m_sourceIP);
 	m_rtpManager->Start();
 }
 
@@ -556,6 +671,60 @@ int RTSPManager::GetUIBCPort(const std::string& input)
 		std::cout << "Port not found in the input string." << std::endl;
 		return 0;
 	}
+}
+
+UIBCCategory RTSPManager::CheckUIBCCategory(const std::string& input)
+{
+	UIBCCategory category = UIBC_NotSupport;
+	std::regex uibc_regex(R"(wfd_uibc_capability:.*)");
+	std::smatch match;
+
+	if (std::regex_search(input, match, uibc_regex)) {
+		std::string uibcStr = match.str(0);
+		if (uibcStr.find("wfd_uibc_capability: none") != std::string::npos) {
+			// explicit not support UIBC
+			category = UIBC_NotSupport;
+		}
+		else {		
+			if (uibcStr.find("input_category_list=HIDC") != std::string::npos) { // HIDC
+				uint8_t hidType = 0;
+				category = UIBC_HIDC;
+				// mate 20
+				// wfd_uibc_capability: input_category_list=HIDC;generic_cap_list=Keyboard, Mouse;hidc_cap_list=Keyboard/USB, Mouse/USB;port=45541
+
+				// Windows
+				// wfd_uibc_capability: input_category_list=HIDC;generic_cap_list=none;hidc_cap_list=Keyboard/USB, Mouse/USB, MultiTouch/USB, Gesture/USB, RemoteControl/USB, Joystick/USB;port=50000
+				std::regex hidc_cap_list_regex(R"(hidc_cap_list=([^;]+))");
+				std::smatch hidc_cap_list_match;
+				if (std::regex_search(input, hidc_cap_list_match, hidc_cap_list_regex)) {
+					std::string hidcCapStr = hidc_cap_list_match.str(1);
+					if (hidcCapStr.find("Keyboard") != std::string::npos) {
+						hidType |= HIDTypeFlags_Keyboard;
+					}
+					if(hidcCapStr.find("Mouse") != std::string::npos) {
+						hidType |= HIDTypeFlags_Mouse;
+					}
+					if (hidcCapStr.find("MultiTouch") != std::string::npos) {
+						hidType |= HIDTypeFlags_MultiTouch;
+					}
+				}
+				else {
+					std::cout << "No matching 'hidc_cap_list' found." << std::endl;
+				}
+
+				if (m_uibcManager) {
+					m_uibcManager->SetHIDType(hidType);
+				}
+			}
+			else if (uibcStr.find("input_category_list=GENERIC") != std::string::npos) { // GENERIC			
+				category = UIBC_Generic;
+
+				// TODO: æ”¯æŒGenericæŒ‡ä»¤
+			}
+		}
+	}
+
+	return category;
 }
 
 RTSPManager::Method RTSPManager::GetMethod()

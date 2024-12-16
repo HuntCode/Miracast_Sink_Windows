@@ -1,4 +1,4 @@
-#ifndef RTSP_MANAGER_H
+﻿#ifndef RTSP_MANAGER_H
 #define RTSP_MANAGER_H
 
 #include <iostream>
@@ -37,9 +37,18 @@ public:
 	void SetStreamID(uint32_t streamId);
 	void SetMiracastCallback(std::shared_ptr<IMiracastCallback> callback);
 
-	void SendHIDMouse(unsigned char type, char xdiff, char ydiff);
-	void SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short keyboardValue);
+	int GetUIBCCategory();
 
+	void SendHIDMouse(unsigned char type, char xdiff, char ydiff, char wdiff);
+	void SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short keyboardValue);
+	void SendHIDMultiTouch(const char* multiTouchMessage);
+
+	bool SupportMultiTouch();
+
+	// Generic
+	void SendGenericTouch(const char* inEventDesc, double widthRatio, double heightRatio);
+
+	void RequestIdr();
 private:
 	std::string m_sourceIP;
 	std::string m_deviceName;
@@ -58,7 +67,7 @@ private:
 
 	std::shared_ptr<IMiracastCallback> m_miracastCallback;
 
-	std::shared_ptr<hv::TcpClient> m_rtspClient;
+	hv::TcpClient m_rtspClient;
 	std::shared_ptr<RTPManager> m_rtpManager;
 	std::shared_ptr<UIBCManager> m_uibcManager;
 
@@ -70,6 +79,7 @@ private:
 	bool ParseSetParameter(std::string& msg);
 	bool ParseSessionID(std::string& message);
 	bool ParseCSeq(std::string& message);
+	void ParseRTCPServerPort(std::string& message);
 	
 	void HandleOptions();
 	void HandleGetParamter();
@@ -77,7 +87,7 @@ private:
 	void HandleSetup();
 	void HandlePlay();
 	void HandleTearDown();
-	void RequestIdr();
+
 
 	int BuildOptionResponse(const char* buf, int bufSize);
 	int BuildOptionRequest(const char* buf, int bufSize);
@@ -94,6 +104,7 @@ private:
 	void SetupRtpServer();
 
 	int GetUIBCPort(const std::string& input);
+	UIBCCategory CheckUIBCCategory(const std::string& input);
 
 	Method GetMethod();
 	uint32_t GetCSeq();

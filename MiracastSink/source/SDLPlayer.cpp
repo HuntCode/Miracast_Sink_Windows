@@ -1,19 +1,24 @@
-#include "pch.h"
-#include "SDLPlayer.h"
-#include "MiracastSink.h"
+Ôªø#ifdef USE_SDL_PLAYER
 
-#define windowWidth 960
-#define windowHeight 570
-#define MY_DEFINE_REFRESH_EVENT     (SDL_USEREVENT + 1)
+#include "SDLPlayer.h"
+#include "MiracastDevice.h"
+#include "UIBCManager.h"
+
+// Ëá™ÂÆö‰πâ‰∫ã‰ª∂Á±ªÂûã
+enum {
+    SDL_EVENT_CREATE_WINDOW = SDL_USEREVENT
+};
 
 std::atomic<int> SDLPlayer::s_instanceCount = 0;
 
-SDLPlayer::SDLPlayer(int videoWidth, int videoHeight, std::shared_ptr<MiracastSink> sink)
-    : m_sink(sink), videoWidth(videoWidth), videoHeight(videoHeight)
+SDLPlayer::SDLPlayer(MiracastDevice* device)
+    : m_device(device), m_window(nullptr), m_renderer(nullptr), m_texture(nullptr),
+      m_videoWidth(0), m_videoHeight(0)
 {
     {
         std::lock_guard<std::mutex> lock(m_initMutex);
         if (s_instanceCount == 0) {
+            SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
             if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) < 0) {
                 std::cerr << "SDL initialization failed: " << SDL_GetError() << std::endl;
                 return;
@@ -26,10 +31,10 @@ SDLPlayer::SDLPlayer(int videoWidth, int videoHeight, std::shared_ptr<MiracastSi
 SDLPlayer::~SDLPlayer()
 {
     Stop();
-    SDL_DestroyTexture(texture);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_CloseAudioDevice(audioDevice);
+    SDL_DestroyTexture(m_texture);
+    SDL_DestroyRenderer(m_renderer);
+    SDL_DestroyWindow(m_window);
+    SDL_CloseAudioDevice(m_audioDevice);
 
     {
         std::lock_guard<std::mutex> lock(m_initMutex);
@@ -38,62 +43,44 @@ SDLPlayer::~SDLPlayer()
         }
     }
 
-    avcodec_free_context(&audioCodecContext);
-    avcodec_free_context(&videoCodecContext);
+    avcodec_free_context(&m_audioCodecContext);
+    avcodec_free_context(&m_videoCodecContext);
 }
 
 void SDLPlayer::Init(const std::string& name)
 {
-    // ¥¥Ω®“Ù∆µ…Ë±∏
-    audioSpec.freq = 44100;
-    audioSpec.format = AUDIO_S16SYS;
-    audioSpec.channels = 2;
-    audioSpec.samples = 1024;
-    audioSpec.callback = nullptr;
-    audioSpec.userdata = nullptr;
+    m_winName = name;
 
-    audioDevice = SDL_OpenAudioDevice(nullptr, 0, &audioSpec, nullptr, 0);
-    if (audioDevice == 0) {
+    // ÂàõÂª∫Èü≥È¢ëËÆæÂ§á
+    m_audioSpec.freq = 48000;
+    m_audioSpec.format = AUDIO_S16SYS;
+    m_audioSpec.channels = 2;
+    m_audioSpec.samples = 1024;
+    m_audioSpec.callback = nullptr;
+    m_audioSpec.userdata = nullptr;
+
+    m_audioDevice = SDL_OpenAudioDevice(nullptr, 0, &m_audioSpec, nullptr, 0);
+    if (m_audioDevice == 0) {
         std::cerr << "Failed to open audio device: " << SDL_GetError() << std::endl;
         return;
     }
-    SDL_PauseAudioDevice(audioDevice, 0); // ª÷∏¥“Ù∆µ…Ë±∏≤•∑≈
+    SDL_PauseAudioDevice(m_audioDevice, 0); // ÊÅ¢Â§çÈü≥È¢ëËÆæÂ§áÊí≠Êîæ
 
-    // ¥¥Ω®¥∞ø⁄°¢‰÷»æ∆˜∫ÕŒ∆¿Ì
-    window = SDL_CreateWindow(name.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-        windowWidth, windowHeight, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-    if (!window) {
-        std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
-        return;
-    }
-
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (!renderer) {
-        std::cerr << "Failed to create renderer: " << SDL_GetError() << std::endl;
-        return;
-    }
-
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING,
-        videoWidth, videoHeight);
-    if (!texture) {
-        std::cerr << "Failed to create texture: " << SDL_GetError() << std::endl;
-        return;
-    }
-
-    // ≥ı ºªØΩ‚¬Î∆˜
+    // ÂàùÂßãÂåñËß£Á†ÅÂô®
     InitDecoder();
 
-    // ∆Ù∂Ø¥¶¿Ìœﬂ≥Ã
-    audioThread = std::thread(&SDLPlayer::AudioThreadFunc, this);
-    videoThread = std::thread(&SDLPlayer::VideoThreadFunc, this);
+    // ÂêØÂä®Â§ÑÁêÜÁ∫øÁ®ã
+    m_audioThread = std::thread(&SDLPlayer::AudioThreadFunc, this);
+    m_videoThread = std::thread(&SDLPlayer::VideoThreadFunc, this);
 }
 
 void SDLPlayer::Play()
 {
-    quit = false;
+    m_quit = false;
     // SDL main loop
-    while (!quit) {
+    while (!m_quit) {
         HandleEvents();
+        HandleCustomEvents();
         Render();
         SDL_Delay(10); // Delay to reduce CPU usage
     }
@@ -101,61 +88,60 @@ void SDLPlayer::Play()
 
 void SDLPlayer::Stop()
 {
-    quit = true;
-    audioCV.notify_all();
-    videoCV.notify_all();
+    m_quit = true;
+    m_audioCV.notify_all();
+    m_videoCV.notify_all();
 
-    if (audioThread.joinable()) audioThread.join();
-    if (videoThread.joinable()) videoThread.join();
+    if (m_audioThread.joinable()) m_audioThread.join();
+    if (m_videoThread.joinable()) m_videoThread.join();
 }
 
 void SDLPlayer::ProcessVideo(uint8_t* buffer, int bufSize)
 {
     {
-        std::lock_guard<std::mutex> lock(videoMutex);
-        videoQueue.push(std::vector<uint8_t>(buffer, buffer + bufSize));
+        std::lock_guard<std::mutex> lock(m_videoMutex);
+        m_videoQueue.push(std::vector<uint8_t>(buffer, buffer + bufSize));
     }
-    videoCV.notify_one();
+    m_videoCV.notify_one();
 }
 
 void SDLPlayer::ProcessAudio(uint8_t* buffer, int bufSize)
 {
     {
-        std::lock_guard<std::mutex> lock(audioMutex);
-        audioQueue.push(std::vector<uint8_t>(buffer, buffer + bufSize));
+        std::lock_guard<std::mutex> lock(m_audioMutex);
+        m_audioQueue.push(std::vector<uint8_t>(buffer, buffer + bufSize));
     }
-    audioCV.notify_one();
+    m_audioCV.notify_one();
 }
 
 void SDLPlayer::InitDecoder()
 {
-    // ≥ı ºªØ“Ù∆µΩ‚¬Î∆˜
+    // ÂàùÂßãÂåñÈü≥È¢ëËß£Á†ÅÂô®
     const AVCodec* audioCodec = avcodec_find_decoder(AV_CODEC_ID_AAC);
-    audioCodecContext = avcodec_alloc_context3(audioCodec);
-    avcodec_open2(audioCodecContext, audioCodec, nullptr);
-    if (audioCodecContext->sample_rate == 0) {
-        audioCodecContext->sample_rate = 44100;
-        //audioCodecContext->channels = 2;
-        //audioCodecContext->channel_layout = av_get_default_channel_layout(2);
+    m_audioCodecContext = avcodec_alloc_context3(audioCodec);
+    avcodec_open2(m_audioCodecContext, audioCodec, nullptr);
+    if (m_audioCodecContext->sample_rate == 0) {
+        m_audioCodecContext->sample_rate = 48000;
+        m_audioCodecContext->ch_layout = AV_CHANNEL_LAYOUT_STEREO;
     }
 
-    // ≥ı ºªØ ”∆µΩ‚¬Î∆˜
+    // ÂàùÂßãÂåñËßÜÈ¢ëËß£Á†ÅÂô®
     const AVCodec* videoCodec = avcodec_find_decoder(AV_CODEC_ID_H264);
-    videoCodecContext = avcodec_alloc_context3(videoCodec);
-    avcodec_open2(videoCodecContext, videoCodec, nullptr);
+    m_videoCodecContext = avcodec_alloc_context3(videoCodec);
+    avcodec_open2(m_videoCodecContext, videoCodec, nullptr);
 
 }
 
 void SDLPlayer::VideoThreadFunc()
 {
-    while (!quit) {
+    while (!m_quit) {
         std::vector<uint8_t> data;
         {
-            std::unique_lock<std::mutex> lock(videoMutex);
-            videoCV.wait(lock, [this] { return !videoQueue.empty() || quit; });
-            if (!videoQueue.empty()) {
-                data = std::move(videoQueue.front());
-                videoQueue.pop();
+            std::unique_lock<std::mutex> lock(m_videoMutex);
+            m_videoCV.wait(lock, [this] { return !m_videoQueue.empty() || m_quit; });
+            if (!m_videoQueue.empty()) {
+                data = std::move(m_videoQueue.front());
+                m_videoQueue.pop();
             }
         }
 
@@ -167,15 +153,15 @@ void SDLPlayer::VideoThreadFunc()
 
 void SDLPlayer::AudioThreadFunc()
 {
-    while (!quit) {
+    while (!m_quit) {
         std::vector<uint8_t> data;
         {
-            std::unique_lock<std::mutex> lock(audioMutex);
-            audioCV.wait(lock, [this] { return !audioQueue.empty() || quit; });
+            std::unique_lock<std::mutex> lock(m_audioMutex);
+            m_audioCV.wait(lock, [this] { return !m_audioQueue.empty() || m_quit; });
 
-            if (!audioQueue.empty()) {
-                data = std::move(audioQueue.front());
-                audioQueue.pop();
+            if (!m_audioQueue.empty()) {
+                data = std::move(m_audioQueue.front());
+                m_audioQueue.pop();
             }
         }
 
@@ -187,36 +173,50 @@ void SDLPlayer::AudioThreadFunc()
 
 void SDLPlayer::DecodeAndQueueVideo(const std::vector<uint8_t>& data)
 {
-    AVPacket packet;
-    av_init_packet(&packet);
-    packet.data = const_cast<uint8_t*>(data.data());
-    packet.size = data.size();
+    AVPacket* packet = av_packet_alloc();
+    packet->data = const_cast<uint8_t*>(data.data());
+    packet->size = data.size();
 
-    if (avcodec_send_packet(videoCodecContext, &packet) >= 0) {
+    if (avcodec_send_packet(m_videoCodecContext, packet) >= 0) {
         AVFrame* frame = av_frame_alloc();
-        if (avcodec_receive_frame(videoCodecContext, frame) >= 0) {
-            std::lock_guard<std::mutex> lock(renderMutex);
-            renderQueue.push(frame);
+        if (avcodec_receive_frame(m_videoCodecContext, frame) >= 0) {
+            std::lock_guard<std::mutex> lock(m_renderMutex);
+
+            // create window
+            if (frame->width != m_videoWidth || frame->height != m_videoHeight) {
+                m_videoWidth = frame->width;
+                m_videoHeight = frame->height;
+
+                CreateWindowEvent event;
+                event.w = m_videoWidth;
+                event.h = m_videoHeight;
+                PushCustomEvent(event);
+                ClearQueue(m_renderQueue);
+            }
+
+            m_renderQueue.push(frame);
         }
     }
-    av_packet_unref(&packet);
+    av_packet_free(&packet);
 }
 
 void SDLPlayer::DecodeAndQueueAudio(const std::vector<uint8_t>& data)
 {
-    AVPacket packet;
-    av_init_packet(&packet);
-    packet.data = const_cast<uint8_t*>(data.data());
-    packet.size = data.size();
+    AVPacket* packet = av_packet_alloc();
+    packet->data = const_cast<uint8_t*>(data.data());
+    packet->size = data.size();
 
-    if (avcodec_send_packet(audioCodecContext, &packet) >= 0) {
+    if (avcodec_send_packet(m_audioCodecContext, packet) >= 0) {
         AVFrame* frame = av_frame_alloc();
-        if (avcodec_receive_frame(audioCodecContext, frame) >= 0) {
-            // “Ù∆µ÷ÿ≤…—˘
-            SwrContext* swrCtx = swr_alloc_set_opts(nullptr,
-                AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, frame->sample_rate,
-                frame->channel_layout, static_cast<AVSampleFormat>(frame->format), frame->sample_rate,
-                0, nullptr);
+        if (avcodec_receive_frame(m_audioCodecContext, frame) >= 0) {
+            // Èü≥È¢ëÈáçÈááÊ†∑
+            AVChannelLayout outChannelLayout = AV_CHANNEL_LAYOUT_STEREO;
+            AVChannelLayout inChannelLayout;
+            inChannelLayout = m_audioCodecContext->ch_layout;
+            SwrContext* swrCtx = swr_alloc(); 
+            swr_alloc_set_opts2(&swrCtx, &outChannelLayout, AV_SAMPLE_FMT_S16, 48000,
+                &inChannelLayout, m_audioCodecContext->sample_fmt, m_audioCodecContext->sample_rate, 0, NULL);
+
             swr_init(swrCtx);
 
             int outSamples = av_rescale_rnd(swr_get_delay(swrCtx, frame->sample_rate) + frame->nb_samples, frame->sample_rate, frame->sample_rate, AV_ROUND_UP);
@@ -227,17 +227,75 @@ void SDLPlayer::DecodeAndQueueAudio(const std::vector<uint8_t>& data)
             int dataSize = av_samples_get_buffer_size(nullptr, 2, convertedSamples, AV_SAMPLE_FMT_S16, 1);
             std::vector<uint8_t> audioBuffer(dataSize);
             memcpy(audioBuffer.data(), output[0], dataSize);
-            SDL_QueueAudio(audioDevice, audioBuffer.data(), audioBuffer.size());
+            SDL_QueueAudio(m_audioDevice, audioBuffer.data(), audioBuffer.size());
 
             av_freep(&output[0]);
             swr_free(&swrCtx);
         }
         av_frame_free(&frame);
     }
-    av_packet_unref(&packet);
+    av_packet_free(&packet);
 }
 
-// ≈–∂œ ¬º˛ «∑Ò Ù”⁄÷∏∂®¥∞ø⁄
+void SDLPlayer::ClearQueue(std::queue<AVFrame*>& queue)
+{
+    while (!queue.empty()) {
+        AVFrame* frame = queue.front();
+        queue.pop();
+        av_frame_free(&frame);
+    }
+}
+
+void SDLPlayer::CreateWindowAndRenderer(int width, int height)
+{
+    if(m_texture != nullptr)
+        SDL_DestroyTexture(m_texture);
+    if(m_renderer != nullptr)
+        SDL_DestroyRenderer(m_renderer);
+    if(m_window != nullptr)
+        SDL_DestroyWindow(m_window);
+    // ÂàõÂª∫Á™óÂè£„ÄÅÊ∏≤ÊüìÂô®ÂíåÁ∫πÁêÜ
+    m_window = SDL_CreateWindow(m_winName.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+        width, height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if (!m_window) {
+        std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
+        return;
+    }
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+
+    m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
+    if (!m_renderer) {
+        std::cerr << "Failed to create renderer: " << SDL_GetError() << std::endl;
+        return;
+    }
+
+    m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING,
+        width, height);
+    if (!m_texture) {
+        std::cerr << "Failed to create texture: " << SDL_GetError() << std::endl;
+        return;
+    }
+}
+
+void SDLPlayer::PushCustomEvent(CreateWindowEvent event)
+{
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    m_customEventQueue.push(event);
+}
+
+void SDLPlayer::HandleCustomEvents()
+{
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    while (!m_customEventQueue.empty()) {
+        CreateWindowEvent event = m_customEventQueue.front();
+        m_customEventQueue.pop();
+
+        CreateWindowAndRenderer(m_videoWidth, m_videoHeight); 
+    }
+}
+
+// Âà§Êñ≠‰∫ã‰ª∂ÊòØÂê¶Â±û‰∫éÊåáÂÆöÁ™óÂè£
 bool SDLPlayer::IsEventForWindow(const SDL_Event& e, SDL_Window* window) 
 {
     return e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP
@@ -253,11 +311,11 @@ void SDLPlayer::HandleEvents()
         //std::cout << "event.type " << event.type << std::endl;
         switch (event.type) {
         case SDL_QUIT:
-            quit = true;
+            m_quit = true;
             break;
         case SDL_WINDOWEVENT:
             if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
-                quit = true;
+                m_quit = true;
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
@@ -267,8 +325,11 @@ void SDLPlayer::HandleEvents()
             OnMouseUp(event.button);
             break;
         case SDL_MOUSEMOTION:
-            if(IsEventForWindow(event, window))
+            if(IsEventForWindow(event, m_window))
                 OnMouseMove(event.motion);
+            break;
+        case SDL_MOUSEWHEEL:
+            OnMouseWheel(event.wheel);
             break;
         case SDL_KEYDOWN:
             OnKeyDown(event.key);
@@ -284,30 +345,124 @@ void SDLPlayer::HandleEvents()
 
 void SDLPlayer::OnMouseDown(const SDL_MouseButtonEvent& buttonEvent)
 {
+#ifdef _DEBUG
     std::cout << "Mouse Button Down: " << (int)buttonEvent.button << " at ("
         << buttonEvent.x << ", " << buttonEvent.y << ")" << std::endl;
+#endif
 
     char xdiff, ydiff;
-    xdiff = (char)(buttonEvent.x - last_x);
-    ydiff = (char)(buttonEvent.y - last_y);
+    xdiff = (char)(buttonEvent.x - m_lastX);
+    ydiff = (char)(buttonEvent.y - m_lastY);
 
-    m_sink->SendHIDMouse(MOUSE_BUTTON_DOWN, xdiff, ydiff);
-    last_x = buttonEvent.x;
-    last_y = buttonEvent.y;
+    // Â§ÑÁêÜÈº†Ê†áÊåâ‰∏ã‰∫ã‰ª∂
+    if (buttonEvent.button == SDL_BUTTON_LEFT) {
+        if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+            m_device->SendHIDMouse(kMouseLeftButtonDown, xdiff, ydiff, 0);
+        }
+        else if (m_device->GetUIBCCategory() == UIBC_Generic) {
+            rapidjson::Document root;
+            root.SetObject();
+            root.AddMember("input_type", GENERIC_TOUCH_DOWN, root.GetAllocator());
+            root.AddMember("fingers", 1, root.GetAllocator());
+            rapidjson::Value touchArrayValue(rapidjson::kArrayType);
+
+            rapidjson::Value touchValue(rapidjson::kObjectType);
+            touchValue.AddMember("touch_id", 0, root.GetAllocator());
+            touchValue.AddMember("x", buttonEvent.x, root.GetAllocator());
+            touchValue.AddMember("y", buttonEvent.y, root.GetAllocator());
+
+            touchArrayValue.PushBack(touchValue, root.GetAllocator());
+            root.AddMember("touch_data", touchArrayValue, root.GetAllocator());
+
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            root.Accept(writer);
+            std::string inEventDesc = buffer.GetString();
+
+            std::cout << "Generic Json: " << inEventDesc << std::endl;
+
+            m_device->SendGenericTouch(inEventDesc.c_str(), 1, 1);
+        }
+    }
+    else if (buttonEvent.button == SDL_BUTTON_MIDDLE) {
+        if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+            m_device->SendHIDMouse(kMouseMiddleButtonDown, xdiff, ydiff, 0);
+        }
+        else if (m_device->GetUIBCCategory() == UIBC_Generic) {
+
+        }
+    }
+    else if (buttonEvent.button == SDL_BUTTON_RIGHT) {
+        if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+            m_device->SendHIDMouse(kMouseRightButtonDown, xdiff, ydiff, 0);
+        }
+        else if (m_device->GetUIBCCategory() == UIBC_Generic) {
+
+        }
+    }
+
+    m_lastX = buttonEvent.x;
+    m_lastY = buttonEvent.y;
 }
 
 void SDLPlayer::OnMouseUp(const SDL_MouseButtonEvent& buttonEvent)
 {
+#ifdef _DEBUG
     std::cout << "Mouse Button Up: " << (int)buttonEvent.button << " at ("
         << buttonEvent.x << ", " << buttonEvent.y << ")" << std::endl;
+#endif
 
     char xdiff, ydiff;
-    xdiff = (char)(buttonEvent.x - last_x);
-    ydiff = (char)(buttonEvent.y - last_y);
+    xdiff = (char)(buttonEvent.x - m_lastX);
+    ydiff = (char)(buttonEvent.y - m_lastY);
 
-    m_sink->SendHIDMouse(MOUSE_BUTTON_UP, xdiff, ydiff);
-    last_x = buttonEvent.x;
-    last_y = buttonEvent.y;
+    // Â§ÑÁêÜÈº†Ê†áÈáäÊîæ‰∫ã‰ª∂
+    if (buttonEvent.button == SDL_BUTTON_LEFT) {
+        if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+            m_device->SendHIDMouse(kMouseLeftButtonUp, xdiff, ydiff, 0);
+        }
+        else if (m_device->GetUIBCCategory() == UIBC_Generic) {
+            rapidjson::Document root;
+            root.SetObject();
+            root.AddMember("input_type", GENERIC_TOUCH_UP, root.GetAllocator());
+            root.AddMember("fingers", 1, root.GetAllocator());
+            rapidjson::Value touchArrayValue(rapidjson::kArrayType);
+            
+            rapidjson::Value touchValue(rapidjson::kObjectType);
+            touchValue.AddMember("touch_id", 0, root.GetAllocator());
+            touchValue.AddMember("x", buttonEvent.x, root.GetAllocator());
+            touchValue.AddMember("y", buttonEvent.y, root.GetAllocator());
+            
+            touchArrayValue.PushBack(touchValue, root.GetAllocator());
+            root.AddMember("touch_data", touchArrayValue, root.GetAllocator());
+
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            root.Accept(writer);
+            std::string inEventDesc = buffer.GetString();
+
+            m_device->SendGenericTouch(inEventDesc.c_str(), 1, 1);
+        }
+    }
+    else if (buttonEvent.button == SDL_BUTTON_MIDDLE) {
+        if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+            m_device->SendHIDMouse(kMouseMiddleButtonUp, xdiff, ydiff, 0);
+        }
+        else if (m_device->GetUIBCCategory() == UIBC_Generic) {
+
+        }
+    }
+    else if (buttonEvent.button == SDL_BUTTON_RIGHT) {
+        if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+            m_device->SendHIDMouse(kMouseRightButtonUp, xdiff, ydiff, 0);
+        }
+        else if (m_device->GetUIBCCategory() == UIBC_Generic) {
+
+        }
+    }
+
+    m_lastX = buttonEvent.x;
+    m_lastY = buttonEvent.y;
 }
 
 void SDLPlayer::OnMouseMove(const SDL_MouseMotionEvent& motionEvent)
@@ -315,18 +470,51 @@ void SDLPlayer::OnMouseMove(const SDL_MouseMotionEvent& motionEvent)
     //std::cout << "SDLPlayer: " << this << " Mouse Move to (" << motionEvent.x << ", " << motionEvent.y << ")" << std::endl;
 
     char xdiff, ydiff;
-    xdiff = (char)(motionEvent.x - last_x);
-    ydiff = (char)(motionEvent.y - last_y);
+    xdiff = (char)(motionEvent.x - m_lastX);
+    ydiff = (char)(motionEvent.y - m_lastY);
+    if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+        m_device->SendHIDMouse(kMouseMotion, xdiff, ydiff, 0);
+    }
+    else if (m_device->GetUIBCCategory() == UIBC_Generic) {
+        rapidjson::Document root;
+        root.SetObject();
+        root.AddMember("input_type", GENERIC_TOUCH_MOVE, root.GetAllocator());
+        root.AddMember("fingers", 1, root.GetAllocator());
+        rapidjson::Value touchArrayValue(rapidjson::kArrayType);
 
-    m_sink->SendHIDMouse(MOUSE_MOTION, xdiff, ydiff);
-    last_x = motionEvent.x;
-    last_y = motionEvent.y;
+        rapidjson::Value touchValue(rapidjson::kObjectType);
+        touchValue.AddMember("touch_id", 0, root.GetAllocator());
+        touchValue.AddMember("x", motionEvent.x, root.GetAllocator());
+        touchValue.AddMember("y", motionEvent.y, root.GetAllocator());
+
+        touchArrayValue.PushBack(touchValue, root.GetAllocator());
+        root.AddMember("touch_data", touchArrayValue, root.GetAllocator());
+
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        root.Accept(writer);
+        std::string inEventDesc = buffer.GetString();
+
+        m_device->SendGenericTouch(inEventDesc.c_str(), 1, 1);
+    }
+    m_lastX = motionEvent.x;
+    m_lastY = motionEvent.y;
+}
+
+void SDLPlayer::OnMouseWheel(const SDL_MouseWheelEvent& wheelEvent)
+{
+    if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+        m_device->SendHIDMouse(kMouseWheel, 0, 0, wheelEvent.y);
+    }
 }
 
 void SDLPlayer::OnKeyDown(const SDL_KeyboardEvent& keyEvent)
 {
+#ifdef _DEBUG
     std::cout << "Key Down: " << SDL_GetKeyName(keyEvent.keysym.sym) << std::endl;
-    // ºÏ≤È–ﬁ Œº¸◊¥Ã¨
+#endif
+
+    // Ê£ÄÊü•‰øÆÈ•∞ÈîÆÁä∂ÊÄÅ
     int modType = MODIFY_NONE;
     SDL_Keymod mod = SDL_GetModState();
     if (mod & KMOD_SHIFT) {
@@ -343,13 +531,18 @@ void SDLPlayer::OnKeyDown(const SDL_KeyboardEvent& keyEvent)
     }
 
     unsigned short keyboardValue = KeyCodeToKeyValue(keyEvent.keysym.sym);
-    m_sink->SendHIDKeyboard(KEYBOARD_DOWN, modType, keyboardValue);
+    if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+        m_device->SendHIDKeyboard(KEYBOARD_DOWN, modType, keyboardValue);
+    }
 }
 
 void SDLPlayer::OnKeyUp(const SDL_KeyboardEvent& keyEvent)
 {
+#ifdef _DEBUG
     std::cout << "Key Up: " << SDL_GetKeyName(keyEvent.keysym.sym) << std::endl;
-    // ºÏ≤È–ﬁ Œº¸◊¥Ã¨
+#endif
+
+    // Ê£ÄÊü•‰øÆÈ•∞ÈîÆÁä∂ÊÄÅ
     int modType = MODIFY_NONE;
     if (keyEvent.keysym.sym == SDLK_LSHIFT || keyEvent.keysym.sym == SDLK_RSHIFT) {
         modType = MODIFY_SHIFT;
@@ -362,12 +555,14 @@ void SDLPlayer::OnKeyUp(const SDL_KeyboardEvent& keyEvent)
     }
     
     unsigned short keyboardValue = KeyCodeToKeyValue(keyEvent.keysym.sym);
-    m_sink->SendHIDKeyboard(KEYBOARD_UP, modType, keyboardValue);
+    if (m_device->GetUIBCCategory() == UIBC_HIDC) {
+        m_device->SendHIDKeyboard(KEYBOARD_UP, modType, keyboardValue);
+    }
 }
 
 unsigned short SDLPlayer::KeyCodeToKeyValue(const SDL_Keycode&code)
 {
-    // »Áπ˚ «ASCII÷µ£¨÷±Ω”∑µªÿ£¨»Áπ˚ «Ãÿ ‚∞¥º¸£¨»Ácaps lock£¨–Ë“™◊™ªª
+    // Â¶ÇÊûúÊòØASCIIÂÄºÔºåÁõ¥Êé•ËøîÂõûÔºåÂ¶ÇÊûúÊòØÁâπÊÆäÊåâÈîÆÔºåÂ¶Çcaps lockÔºåÈúÄË¶ÅËΩ¨Êç¢
     unsigned short keyboardValue = code;
     switch (code)
     {
@@ -468,21 +663,23 @@ unsigned short SDLPlayer::KeyCodeToKeyValue(const SDL_Keycode&code)
 
 void SDLPlayer::Render()
 {
-    std::lock_guard<std::mutex> lock(renderMutex);
+    std::lock_guard<std::mutex> lock(m_renderMutex);
 
-    if (!renderQueue.empty()) {
-        AVFrame* frame = renderQueue.front();
-        renderQueue.pop();
+    if (!m_renderQueue.empty()) {
+        AVFrame* frame = m_renderQueue.front();
+        m_renderQueue.pop();
 
-        SDL_UpdateYUVTexture(texture, nullptr,
+        SDL_UpdateYUVTexture(m_texture, nullptr,
             frame->data[0], frame->linesize[0],
             frame->data[1], frame->linesize[1],
             frame->data[2], frame->linesize[2]);
 
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, nullptr, nullptr);
-        SDL_RenderPresent(renderer);
+        SDL_RenderClear(m_renderer);
+        SDL_RenderCopy(m_renderer, m_texture, nullptr, nullptr);
+        SDL_RenderPresent(m_renderer);
 
         av_frame_free(&frame);
     }
 }
+
+#endif // USE_SDL_PLAYER

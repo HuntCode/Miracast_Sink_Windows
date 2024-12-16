@@ -1,12 +1,16 @@
-#include "pch.h"
-#include "UIBCManager.h"
+ï»¿#include "UIBCManager.h"
 #include <iostream>
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
+
+#include "Util/logger.h"
 
 #include <map>
 
-// ¶¨ÒåÒ»¸ö¼üÅÌÖµµ½HIDÊ¹ÓÃÂëµÄÓ³Éä±í
+// å®šä¹‰ä¸€ä¸ªé”®ç›˜å€¼åˆ°HIDä½¿ç”¨ç çš„æ˜ å°„è¡¨
 const std::map<unsigned short, char> keyboardToHIDMap = {
-    // ×ÖÄ¸
+    // å­—æ¯
     {'a', 0x04}, {'b', 0x05}, {'c', 0x06}, {'d', 0x07}, {'e', 0x08},
     {'f', 0x09}, {'g', 0x0A}, {'h', 0x0B}, {'i', 0x0C}, {'j', 0x0D},
     {'k', 0x0E}, {'l', 0x0F}, {'m', 0x10}, {'n', 0x11}, {'o', 0x12},
@@ -14,7 +18,7 @@ const std::map<unsigned short, char> keyboardToHIDMap = {
     {'u', 0x18}, {'v', 0x19}, {'w', 0x1A}, {'x', 0x1B}, {'y', 0x1C},
     {'z', 0x1D},
 
-    // ´óĞ´×ÖÄ¸£¨Í¬Ğ¡Ğ´×ÖÄ¸£©
+    // å¤§å†™å­—æ¯ï¼ˆåŒå°å†™å­—æ¯ï¼‰
     {'A', 0x04}, {'B', 0x05}, {'C', 0x06}, {'D', 0x07}, {'E', 0x08},
     {'F', 0x09}, {'G', 0x0A}, {'H', 0x0B}, {'I', 0x0C}, {'J', 0x0D},
     {'K', 0x0E}, {'L', 0x0F}, {'M', 0x10}, {'N', 0x11}, {'O', 0x12},
@@ -22,11 +26,11 @@ const std::map<unsigned short, char> keyboardToHIDMap = {
     {'U', 0x18}, {'V', 0x19}, {'W', 0x1A}, {'X', 0x1B}, {'Y', 0x1C},
     {'Z', 0x1D},
 
-    // Êı×Ö
+    // æ•°å­—
     {'1', 0x1E}, {'2', 0x1F}, {'3', 0x20}, {'4', 0x21}, {'5', 0x22},
     {'6', 0x23}, {'7', 0x24}, {'8', 0x25}, {'9', 0x26}, {'0', 0x27},
 
-    // ·ûºÅ
+    // ç¬¦å·
     {'!', 0x1E}, {'@', 0x1F}, {'#', 0x20}, {'$', 0x21}, {'%', 0x22},
     {'^', 0x23}, {'&', 0x24}, {'*', 0x25}, {'(', 0x26}, {')', 0x27},
     {'-', 0x2D}, {'_', 0x2D}, {'=', 0x2E}, {'+', 0x2E}, {'[', 0x2F},
@@ -35,14 +39,14 @@ const std::map<unsigned short, char> keyboardToHIDMap = {
     {'~', 0x35}, {',', 0x36}, {'<', 0x36}, {'.', 0x37}, {'>', 0x37},
     {'/', 0x38}, {'?', 0x38},
 
-    // ¿ØÖÆ¼ü
+    // æ§åˆ¶é”®
     {0x08, 0x2A}, // Backspace
     {0x09, 0x2B}, // Tab
     {0x0D, 0x28}, // Enter
     {0x1B, 0x29}, // Escape
     {0x20, 0x2C}, // Space
 
-    // ¹¦ÄÜ¼ü£¬´Ó0x0100¿ªÊ¼
+    // åŠŸèƒ½é”®ï¼Œä»0x0100å¼€å§‹
     {HH_FUNCTION_F1, 0x3A}, // F1
     {HH_FUNCTION_F2, 0x3B}, // F2
     {HH_FUNCTION_F3, 0x3C}, // F3
@@ -56,63 +60,66 @@ const std::map<unsigned short, char> keyboardToHIDMap = {
     {HH_FUNCTION_F11, 0x44}, // F11
     {HH_FUNCTION_F12, 0x45}, // F12
 
-    // ·½Ïò¼ü£¬´Ó0x0110¿ªÊ¼
+    // æ–¹å‘é”®ï¼Œä»0x0110å¼€å§‹
     {HH_SPECIAL_LEFT_ARROW, 0x50},  // Left Arrow
     {HH_SPECIAL_RIGHT_ARROW, 0x4F}, // Right Arrow
     {HH_SPECIAL_UP_ARROW, 0x52},    // Up Arrow
     {HH_SPECIAL_DOWN_ARROW, 0x51},  // Down Arrow
 
-    // ±à¼­¼ü£¬´Ó0x0120¿ªÊ¼
+    // ç¼–è¾‘é”®ï¼Œä»0x0120å¼€å§‹
     {HH_SPECIAL_INSERT, 0x49},      // Insert
     {HH_SPECIAL_HOME, 0x4A},        // Home
     {HH_SPECIAL_END, 0x4D},         // End
     {HH_SPECIAL_PAGEUP, 0x4B},      // Page Up
     {HH_SPECIAL_PAGEDOWN, 0x4E},    // Page Down
 
-    // ÌØÊâ¼ü£¬´Ó0x0130¿ªÊ¼
+    // ç‰¹æ®Šé”®ï¼Œä»0x0130å¼€å§‹
     {HH_SPECIAL_CAPS_LOCK, 0x39},   // Caps Lock
     {HH_SPECIAL_NUM_LOCK, 0x53},    // Num Lock
     {HH_SPECIAL_PRINT_SCREEN, 0x46}, // Print Screen
     {HH_SPECIAL_SCROLL_LOCK, 0x47}, // Scroll Lock
     {HH_SPECIAL_PAUSE, 0x48}, // Pause
 
-    // Ğ¡¼üÅÌÉÏµÄ·ûºÅ¼ü£¬´Ó0x0140¿ªÊ¼
-    {HH_SPECIAL_KP_DIVIDE, 0x54},   // Ğ¡¼üÅÌ /
-    {HH_SPECIAL_KP_MULTIPLY, 0x55}, // Ğ¡¼üÅÌ *
-    {HH_SPECIAL_KP_MINUS, 0x56},    // Ğ¡¼üÅÌ -
-    {HH_SPECIAL_KP_PLUS, 0x57}, // Ğ¡¼üÅÌ +
-    {HH_SPECIAL_KP_ENTER, 0x58}, // Ğ¡¼üÅÌ Enter
+    // å°é”®ç›˜ä¸Šçš„ç¬¦å·é”®ï¼Œä»0x0140å¼€å§‹
+    {HH_SPECIAL_KP_DIVIDE, 0x54},   // å°é”®ç›˜ /
+    {HH_SPECIAL_KP_MULTIPLY, 0x55}, // å°é”®ç›˜ *
+    {HH_SPECIAL_KP_MINUS, 0x56},    // å°é”®ç›˜ -
+    {HH_SPECIAL_KP_PLUS, 0x57}, // å°é”®ç›˜ +
+    {HH_SPECIAL_KP_ENTER, 0x58}, // å°é”®ç›˜ Enter
 
-    // Ğ¡¼üÅÌÉÏµÄÊı×Ö¼ü£¬´Ó0x0150¿ªÊ¼
-    {HH_SPECIAL_KP_1, 0x59}, // Ğ¡¼üÅÌ 1
-    {HH_SPECIAL_KP_2, 0x5A}, // Ğ¡¼üÅÌ 2
-    {HH_SPECIAL_KP_3, 0x5B}, // Ğ¡¼üÅÌ 3
-    {HH_SPECIAL_KP_4, 0x5C}, // Ğ¡¼üÅÌ 4
-    {HH_SPECIAL_KP_5, 0x5D}, // Ğ¡¼üÅÌ 5
-    {HH_SPECIAL_KP_6, 0x5E}, // Ğ¡¼üÅÌ 6
-    {HH_SPECIAL_KP_7, 0x5F}, // Ğ¡¼üÅÌ 7
-    {HH_SPECIAL_KP_8, 0x60}, // Ğ¡¼üÅÌ 8
-    {HH_SPECIAL_KP_9, 0x61}, // Ğ¡¼üÅÌ 9
-    {HH_SPECIAL_KP_0, 0x62}, // Ğ¡¼üÅÌ 0
-    {HH_SPECIAL_KP_PERIOD, 0x63}, // Ğ¡¼üÅÌ .
+    // å°é”®ç›˜ä¸Šçš„æ•°å­—é”®ï¼Œä»0x0150å¼€å§‹
+    {HH_SPECIAL_KP_1, 0x59}, // å°é”®ç›˜ 1
+    {HH_SPECIAL_KP_2, 0x5A}, // å°é”®ç›˜ 2
+    {HH_SPECIAL_KP_3, 0x5B}, // å°é”®ç›˜ 3
+    {HH_SPECIAL_KP_4, 0x5C}, // å°é”®ç›˜ 4
+    {HH_SPECIAL_KP_5, 0x5D}, // å°é”®ç›˜ 5
+    {HH_SPECIAL_KP_6, 0x5E}, // å°é”®ç›˜ 6
+    {HH_SPECIAL_KP_7, 0x5F}, // å°é”®ç›˜ 7
+    {HH_SPECIAL_KP_8, 0x60}, // å°é”®ç›˜ 8
+    {HH_SPECIAL_KP_9, 0x61}, // å°é”®ç›˜ 9
+    {HH_SPECIAL_KP_0, 0x62}, // å°é”®ç›˜ 0
+    {HH_SPECIAL_KP_PERIOD, 0x63}, // å°é”®ç›˜ .
 
-    // É¾³ı¼ü
+    // åˆ é™¤é”®
     {127, 0x4C} // Delete
 };
 
 
 UIBCManager::UIBCManager():
-	m_uibcFd(-1)
+	m_uibcFd(-1), 
+    m_uibcEnable(true),
+    m_uibcCategory(UIBC_NotSupport),
+    m_HIDType(0)
 {
 #ifdef _WIN32
     InitWindowsSockets();
 #endif
 
     for (int i = 0; i < MAX_KEYBOARD_REPORT; i++)
-        pending_keys[i] = 0;
-    shift_down = false;
-    alt_down = false;
-    ctrl_down = false;
+        m_pendingKeys[i] = 0;
+    m_shiftDown = false;
+    m_altDown = false;
+    m_ctrlDown = false;
 }
 
 UIBCManager::~UIBCManager()
@@ -159,8 +166,20 @@ int UIBCManager::ConnectUIBC(const std::string& ip, int port)
 
     m_uibcFd = sockfd;
 
-    SendHIDDescriptor(HID_TYPE_MOUSE, mouseDescriptor, sizeof(mouseDescriptor));
-    SendHIDDescriptor(HID_TYPE_KEYBOARD, keyboardDescriptor, sizeof(keyboardDescriptor));
+    if (GetUIBCCategory() == UIBC_HIDC) {
+        if (m_HIDType & HIDTypeFlags_Keyboard ) {
+            SendHIDDescriptor(HID_TYPE_KEYBOARD, s_keyboardDescriptor, sizeof(s_keyboardDescriptor));
+        }
+        if (m_HIDType & HIDTypeFlags_Mouse) {
+            SendHIDDescriptor(HID_TYPE_MOUSE, s_mouseDescriptor, sizeof(s_mouseDescriptor));
+        }
+        if (m_HIDType & HIDTypeFlags_MultiTouch) {
+            SendHIDDescriptor(HID_TYPE_MULTITOUCH, s_multiTouchDescriptor, sizeof(s_multiTouchDescriptor));
+
+            // send multiTouch feature
+            SendMultiTouchFeature();
+        }
+    }
 
     return 0;
 }
@@ -173,13 +192,65 @@ bool UIBCManager::Connected()
 		return false;
 }
 
-void UIBCManager::SendHIDMouse(unsigned char type, char xdiff, char ydiff)
+void UIBCManager::SetEnable(bool enable)
 {
-    if (type == MOUSE_BUTTON_DOWN) {
-        last_buttons |= 0x01;
+    m_uibcEnable = enable;
+}
+
+bool UIBCManager::GetEnable()
+{
+    return m_uibcEnable;
+}
+
+void UIBCManager::SetUIBCCategory(UIBCCategory category)
+{
+    m_uibcCategory = category;
+}
+
+UIBCCategory UIBCManager::GetUIBCCategory()
+{
+    return m_uibcCategory;
+}
+
+void UIBCManager::SetHIDType(uint8_t typeFlags)
+{
+    m_HIDType = typeFlags;
+}
+
+uint8_t UIBCManager::GetHIDType()
+{
+    return m_HIDType;
+}
+
+bool UIBCManager::SupportMultiTouch()
+{
+    if (m_HIDType & HIDTypeFlags_MultiTouch) {
+        return true;
     }
-    else if (type == MOUSE_BUTTON_UP)
-        last_buttons = 0;
+    return false;
+}
+
+void UIBCManager::SendHIDMouse(unsigned char type, char xdiff, char ydiff, char wdiff)
+{
+    if (!m_uibcEnable) {
+        return;
+    }
+
+    if (type == kMouseLeftButtonDown) {
+        m_lastButtons |= 0x01;
+    }
+    else if (type == kMouseMiddleButtonDown) {
+        m_lastButtons |= 0x04;
+    }
+    else if (type == kMouseRightButtonDown) {
+        m_lastButtons |= 0x02;
+    }
+    else if (type == kMouseLeftButtonUp ||
+        type == kMouseMiddleButtonUp ||
+        type == kMouseRightButtonUp) {
+        m_lastButtons = 0;
+    }
+        
 
     unsigned char* inputMouse = (unsigned char*)malloc(HIDC_INPUT_MOUSE_TOTAL);
     memset(inputMouse, 0, HIDC_INPUT_MOUSE_TOTAL);
@@ -190,46 +261,51 @@ void UIBCManager::SendHIDMouse(unsigned char type, char xdiff, char ydiff)
     unsigned short len = htons(HIDC_INPUT_MOUSE_BODY_LENGTH);
     memcpy(inputMouse + 3, &len, sizeof(len));
     inputMouse[5] = 0x28;
-    inputMouse[6] = last_buttons;
+    inputMouse[6] = m_lastButtons;
     inputMouse[7] = xdiff;
     inputMouse[8] = ydiff;
+    inputMouse[9] = wdiff;
     SendUIBCEvent(INPUT_HIDC, inputMouse, HIDC_INPUT_MOUSE_TOTAL);
     free(inputMouse);
 }
 
 void UIBCManager::SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short keyboardValue)
 {
+    if (!m_uibcEnable) {
+        return;
+    }
+
     if (modType == MODIFY_SHIFT) {
         if (type == KEYBOARD_DOWN)
-            shift_down = true;
+            m_shiftDown = true;
         else
-            shift_down = false;
+            m_shiftDown = false;
     }
     else if (modType == MODIFY_CTRL) {
         if (type == KEYBOARD_DOWN)
-            ctrl_down = true;
+            m_ctrlDown = true;
         else
-            ctrl_down = false;
+            m_ctrlDown = false;
     }
     else if (modType == MODIFY_ALT) {
         if (type == KEYBOARD_DOWN)
-            alt_down = true;
+            m_altDown = true;
         else
-            alt_down = false;
+            m_altDown = false;
     }
 
     if (type == KEYBOARD_DOWN) {
         for (int i = 0; i < MAX_KEYBOARD_REPORT; i++) {
-            if (pending_keys[i] == 0) {
-                pending_keys[i] = keyboardValue;
+            if (m_pendingKeys[i] == 0) {
+                m_pendingKeys[i] = keyboardValue;
                 break;
             }
         }
     }
     else if (type == KEYBOARD_UP) {
         for (int i = 0; i < MAX_KEYBOARD_REPORT; i++) {
-            if (pending_keys[i] == keyboardValue)
-                pending_keys[i] = 0;
+            if (m_pendingKeys[i] == keyboardValue)
+                m_pendingKeys[i] = 0;
         }
     }
     else
@@ -239,7 +315,7 @@ void UIBCManager::SendHIDKeyboard(unsigned char type, unsigned char modType, uns
     memset(inputKeyboard, 0, HIDC_INPUT_KEYBOARD_TOTAL);
 
     inputKeyboard[0] = 1;   // usb
-    inputKeyboard[1] = 0;   // mouse
+    inputKeyboard[1] = 0;   // keyboard
     inputKeyboard[2] = 0;   // contains report
     unsigned short len = htons(HIDC_INPUT_KEYBOARD_BODY_LENGTH);
     memcpy(inputKeyboard + 3, &len, sizeof(len));
@@ -247,11 +323,11 @@ void UIBCManager::SendHIDKeyboard(unsigned char type, unsigned char modType, uns
     // next, keyboard modifier
     inputKeyboard[5] = 0x29;
     inputKeyboard[6] = 0;
-    if (shift_down)
+    if (m_shiftDown)
         inputKeyboard[6] |= 0x02;
-    if (alt_down)
+    if (m_altDown)
         inputKeyboard[6] |= 0x04;
-    if (ctrl_down)
+    if (m_ctrlDown)
         inputKeyboard[6] |= 0x01;
     // reserved byte
     inputKeyboard[7] = 0;
@@ -259,8 +335,8 @@ void UIBCManager::SendHIDKeyboard(unsigned char type, unsigned char modType, uns
     int stindex = 8;
     for (int i = 0; i < MAX_KEYBOARD_REPORT; i++) {
         inputKeyboard[i + 8] = 0x00;
-        if (pending_keys[i] != 0) {
-            char hidch = KeyboardValueToHID(pending_keys[i]);
+        if (m_pendingKeys[i] != 0) {
+            char hidch = KeyboardValueToHID(m_pendingKeys[i]);
             if (hidch != 0) {
                 inputKeyboard[stindex] = hidch;
                 stindex++;
@@ -269,6 +345,462 @@ void UIBCManager::SendHIDKeyboard(unsigned char type, unsigned char modType, uns
     }
     SendUIBCEvent(INPUT_HIDC, (unsigned char*)inputKeyboard, HIDC_INPUT_KEYBOARD_TOTAL);
     free(inputKeyboard);
+}
+
+/*
+*  multiTouchMessage jsonæ ¼å¼
+*  {
+*       "fingers": 2, //æœ€å¤šæ”¯æŒ10æŒ‡è§¦æ§
+*       "timestamp": 6000,//ç›¸å¯¹å€¼
+*       "width": 1920,
+*       "height": 1080,
+*       "touch_data":[
+*                {
+*                   "touch_id": 0,
+*                   "touch_state": 1, //1è¡¨ç¤ºtouch downï¼Œ0è¡¨ç¤ºtouch up
+*                   "x": 100,
+*                   "y": 200
+*                },
+*                {
+*                   "touch_id": 1,
+*                   "touch_state": 1,
+*                   "x": 150,
+*                   "y": 250
+*                }
+*         ]
+*  }
+*/
+void UIBCManager::SendHIDMultiTouch(const char* multiTouchMessage)
+{
+    if (!m_uibcEnable) {
+        return;
+    }
+
+    unsigned char* inputMultiTouch = (unsigned char*)malloc(HIDC_INPUT_MULTITOUCH_TOTAL);
+    memset(inputMultiTouch, 0, HIDC_INPUT_MULTITOUCH_TOTAL);
+
+    inputMultiTouch[0] = 1;   // usb
+    inputMultiTouch[1] = 3;   // multi touch
+    inputMultiTouch[2] = 0;   // contains report
+    unsigned short len = htons(HIDC_INPUT_MULTITOUCH_BODY_LENGTH);
+    memcpy(inputMultiTouch + 3, &len, sizeof(len));
+
+    inputMultiTouch[5] = 0x13;
+
+    rapidjson::Document rapidDocument;
+    rapidDocument.Parse(multiTouchMessage);
+    if (rapidDocument.HasParseError()) {
+        return;
+    }
+
+    unsigned short width;
+    unsigned short height;
+    if (rapidDocument.HasMember("width") && rapidDocument["width"].IsInt() &&
+        rapidDocument.HasMember("height") && rapidDocument["height"].IsInt()) {
+        width = rapidDocument["width"].GetInt();
+        height = rapidDocument["height"].GetInt();
+    }
+
+    // touch_data
+    if (rapidDocument.HasMember("touch_data") && rapidDocument["touch_data"].IsArray()) {
+        const rapidjson::Value& touchData = rapidDocument["touch_data"];
+        for (int i = 0; i < touchData.Size(); ++i) {
+            const rapidjson::Value& touch = touchData[i];
+            if (touch.HasMember("touch_id") && touch["touch_id"].IsInt() &&
+                touch.HasMember("touch_state") && touch["touch_state"].IsInt() &&
+                touch.HasMember("x") && touch["x"].IsInt() &&
+                touch.HasMember("y") && touch["y"].IsInt()) {
+                
+                inputMultiTouch[6 + 6 * i] = touch["touch_state"].GetInt();
+                inputMultiTouch[6 + 1 + 6 * i] = touch["touch_id"].GetInt();
+
+                unsigned short x = touch["x"].GetInt();        
+                unsigned short logicX = LOGICAL_MAXIMUM * x / width;
+                //DebugL << "x: " << x << " logicX: " << logicX;
+
+                inputMultiTouch[6 + 2 + 6 * i] = logicX & 0xFF;
+                inputMultiTouch[6 + 3 + 6 * i] = (logicX >> 8) & 0xFF;
+
+
+                unsigned short y = touch["y"].GetInt();
+                unsigned short logicY = LOGICAL_MAXIMUM * y / height;
+                //DebugL << "y: " << x << " logicY: " << logicX;
+
+                inputMultiTouch[6 + 4 + 6 * i] = logicY & 0xFF;
+                inputMultiTouch[6 + 5 + 6 * i] = (logicY >> 8) & 0xFF;
+
+            }
+        }
+    }
+
+    // finger count
+    if (rapidDocument.HasMember("fingers") && rapidDocument["fingers"].IsInt()) {
+        inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 3] = rapidDocument["fingers"].GetInt();
+    }
+
+    // timestamp
+    if (rapidDocument.HasMember("timestamp") && rapidDocument["timestamp"].IsInt()) {
+        int timestamp = rapidDocument["timestamp"].GetInt();
+        
+        unsigned short feature = timestamp;
+        inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 2] = feature & 0xFF;
+        inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 1] = (feature >> 8) & 0xFF;
+    }
+
+    SendUIBCEvent(INPUT_HIDC, inputMultiTouch, HIDC_INPUT_MULTITOUCH_TOTAL);
+    free(inputMultiTouch);
+}
+
+void UIBCManager::SendMultiTouchFeature()
+{
+    unsigned char* inputMouse = (unsigned char*)malloc(HIDC_INPUT_MULTITOUCH_FEATURE_TOTAL);
+    memset(inputMouse, 0, HIDC_INPUT_MULTITOUCH_FEATURE_TOTAL);
+    // hidc multi touch report
+    inputMouse[0] = 1;   // usb
+    inputMouse[1] = 3;   // multi touch
+    inputMouse[2] = 0;   // contains report
+    unsigned short len = htons(3);
+    memcpy(inputMouse + 3, &len, sizeof(len));
+    inputMouse[5] = 0x12;
+
+    unsigned short feature = HIDC_INPUT_MULTITOUCH_FINGERS;
+    inputMouse[6] = feature & 0xFF;
+    inputMouse[7] = (feature >> 8) & 0xFF;
+
+    SendUIBCEvent(INPUT_HIDC, inputMouse, HIDC_INPUT_MULTITOUCH_FEATURE_TOTAL);
+    free(inputMouse);
+}
+
+/* Generic Category
+*/
+/*
+*  {
+*      "input_type": 0, //GENERIC_TOUCH_DOWN/GENERIC_TOUCH_UP/GENERIC_TOUCH_MOVE
+*      "fingers": 1, //æœ€å¤šæ”¯æŒ10æŒ‡è§¦æ§
+*      "touch_data" : [
+*          {
+*             "touch_id": 0,
+*             "x" : 100,
+*             "y" : 200
+*          }
+*       ]
+*   }
+*/
+void UIBCManager::SendGenericTouch(const char* inEventDesc, double widthRatio, double heightRatio)
+{
+    if (!m_uibcEnable) {
+        return;
+    }
+
+    rapidjson::Document rapidDocument;
+    rapidDocument.Parse(inEventDesc);
+    if (rapidDocument.HasParseError()) {
+        return;
+    }
+    int32_t numberOfPointers = 0;
+    // finger count
+    if (rapidDocument.HasMember("fingers") && rapidDocument["fingers"].IsInt()) {
+        numberOfPointers = rapidDocument["fingers"].GetInt();
+    }
+
+    int32_t genericPacketLen = 0;
+    genericPacketLen = 3 + 1 + numberOfPointers * 5;
+
+    unsigned char* inputGenericTouch = (unsigned char*)malloc(genericPacketLen);
+    memset(inputGenericTouch, 0, genericPacketLen);
+
+    int32_t inputType = 0;
+    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+        inputType = rapidDocument["input_type"].GetInt();
+    }
+    //Generic Input Body Format
+    inputGenericTouch[0] = inputType & 0xFF; // Type ID, 1 octet
+
+    // Length, 2 bytes
+    inputGenericTouch[1] = (genericPacketLen >> 8) & 0xFF; // first byte
+    inputGenericTouch[2] = genericPacketLen & 0xFF; //last byte
+
+    // Number of pointers, 1 octet
+    inputGenericTouch[3] = numberOfPointers & 0xFF;
+
+    // touch_data
+    if (rapidDocument.HasMember("touch_data") && rapidDocument["touch_data"].IsArray()) {
+        const rapidjson::Value& touchData = rapidDocument["touch_data"];
+        for (int i = 0; i < touchData.Size(); ++i) {
+            const rapidjson::Value& touch = touchData[i];
+            if (touch.HasMember("touch_id") && touch["touch_id"].IsInt() &&
+                touch.HasMember("x") && touch["x"].IsInt() &&
+                touch.HasMember("y") && touch["y"].IsInt()) {
+
+                inputGenericTouch[4 + 5 * i] = touch["touch_id"].GetInt();
+
+                unsigned short x = touch["x"].GetInt();
+                inputGenericTouch[4 + 1 + 5 * i] = (x >> 8) & 0xFF;
+                inputGenericTouch[4 + 2 + 5 * i] = x & 0xFF;
+
+                unsigned short y = touch["y"].GetInt();
+                inputGenericTouch[4 + 3 + 5 * i] = (y >> 8) & 0xFF;
+                inputGenericTouch[4 + 4 + 5 * i] = y & 0xFF;
+            }
+        }
+    }
+
+    SendUIBCEvent(INPUT_GENERIC, inputGenericTouch, genericPacketLen);
+    free(inputGenericTouch);
+}
+
+
+/*
+*  {
+*      "input_type": 3, //GENERIC_KEY_DOWN/GENERIC_KEY_UP
+*      "key_one" : 111,
+*      "key_two" : 222,
+*   }
+*/
+void UIBCManager::SendGenericKey(const char* inEventDesc)
+{
+    if (!m_uibcEnable) {
+        return;
+    }
+
+    rapidjson::Document rapidDocument;
+    rapidDocument.Parse(inEventDesc);
+    if (rapidDocument.HasParseError()) {
+        return;
+    }
+
+    int32_t genericPacketLen = 0;
+    genericPacketLen = 3 + 5;
+
+    unsigned char* inputGenericKey = (unsigned char*)malloc(genericPacketLen);
+    memset(inputGenericKey, 0, genericPacketLen);
+
+    int32_t inputType = 0;
+    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+        inputType = rapidDocument["input_type"].GetInt();
+    }
+
+    //Generic Input Body Format
+    inputGenericKey[0] = inputType & 0xFF; // Type ID, 1 octet
+    
+    //Length, 2 bytes
+    inputGenericKey[1] = (genericPacketLen >> 8) & 0xFF; // first byte
+    inputGenericKey[2] = genericPacketLen & 0xFF; // last byte
+    inputGenericKey[3] = 0x00; // reserved
+
+
+    int32_t key1 = 0;
+    if (rapidDocument.HasMember("key_one") && rapidDocument["key_one"].IsInt()) {
+        key1 = rapidDocument["key_one"].GetInt();
+    }
+    inputGenericKey[4] = (key1 >> 8) & 0xFF;
+    inputGenericKey[5] = key1 & 0xFF;
+
+    int32_t key2 = 0;
+    if (rapidDocument.HasMember("key_two") && rapidDocument["key_two"].IsInt()) {
+        key2 = rapidDocument["key_two"].GetInt();
+    }
+    inputGenericKey[6] = (key2 >> 8) & 0xFF;
+    inputGenericKey[7] = key2 & 0xFF;
+
+    SendUIBCEvent(INPUT_GENERIC, inputGenericKey, genericPacketLen);
+    free(inputGenericKey);
+}
+
+/*
+*  {
+*      "input_type": 5, //GENERIC_ZOOM
+*      "x" : 111,
+*      "y" : 222,
+*      "integer_part": 1,
+*      "fraction_part": 256, //The unit of the fractional part shall be 1/256, 
+*                            //and the sign of the fractional part is always positive.            
+*   }
+*/
+void UIBCManager::SendGenericZoom(const char* inEventDesc)
+{
+    if (!m_uibcEnable) {
+        return;
+    }
+
+    rapidjson::Document rapidDocument;
+    rapidDocument.Parse(inEventDesc);
+    if (rapidDocument.HasParseError()) {
+        return;
+    }
+
+    int32_t genericPacketLen = 0;
+    genericPacketLen = 3 + 6;
+
+    unsigned char* inputGenericZoom = (unsigned char*)malloc(genericPacketLen);
+    memset(inputGenericZoom, 0, genericPacketLen);
+
+    int32_t inputType = 0;
+    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+        inputType = rapidDocument["input_type"].GetInt();
+    }
+
+    //Generic Input Body Format
+    inputGenericZoom[0] = inputType & 0xFF; // Type ID, 1 octet
+    inputGenericZoom[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
+    inputGenericZoom[2] = genericPacketLen & 0xFF; // Length, 2 octets
+
+    int32_t xCoord = 0;
+    if (rapidDocument.HasMember("x") && rapidDocument["x"].IsInt()) {
+        xCoord = rapidDocument["x"].GetInt();
+    }
+    inputGenericZoom[3] = (xCoord >> 8) & 0xFF;
+    inputGenericZoom[4] = xCoord & 0xFF;
+
+    int32_t yCoord = 0;
+    if (rapidDocument.HasMember("y") && rapidDocument["y"].IsInt()) {
+        yCoord = rapidDocument["y"].GetInt();
+    }
+    inputGenericZoom[5] = (yCoord >> 8) & 0xFF;
+    inputGenericZoom[6] = yCoord & 0xFF;
+
+    int32_t integerPart = 0;
+    if (rapidDocument.HasMember("integer_part") && rapidDocument["integer_part"].IsInt()) {
+        integerPart = rapidDocument["integer_part"].GetInt();
+    }
+    inputGenericZoom[7] = integerPart & 0xFF;
+
+    int32_t fractionPart = 0;
+    if (rapidDocument.HasMember("fraction_part") && rapidDocument["fraction_part"].IsInt()) {
+        fractionPart = rapidDocument["fraction_part"].GetInt();
+    }
+    inputGenericZoom[8] = fractionPart & 0xFF;
+
+    SendUIBCEvent(INPUT_GENERIC, inputGenericZoom, genericPacketLen);
+    free(inputGenericZoom);
+}
+
+/*
+*  {
+*      "input_type": 6, //GENERIC_VERTICAL_SCROLL/GENERIC_HORIZONTAL_SCROLL
+*      "unit" : 0, //0000 0000 01 00 0000(64)/0000 0000 0000 0000(0)
+*      "direction" : 0,//0000 0000 00 1 0 0000(32)/0000 0000 0000 0000(0)
+*      "amount_to_scroll": 1, //000 1 1111 1111 1111
+*   }
+*/
+void UIBCManager::SendGenericScroll(const char* inEventDesc)
+{
+    if (!m_uibcEnable) {
+        return;
+    }
+
+    rapidjson::Document rapidDocument;
+    rapidDocument.Parse(inEventDesc);
+    if (rapidDocument.HasParseError()) {
+        return;
+    }
+
+    int32_t genericPacketLen = 0;
+    genericPacketLen = 3 + 2;
+
+    unsigned char* inputGenericScroll = (unsigned char*)malloc(genericPacketLen);
+    memset(inputGenericScroll, 0, genericPacketLen);
+
+    int32_t inputType = 0;
+    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+        inputType = rapidDocument["input_type"].GetInt();
+    }
+
+    //Generic Input Body Format
+    inputGenericScroll[0] = inputType & 0xFF; // Type ID, 1 octet
+    inputGenericScroll[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
+    inputGenericScroll[2] = genericPacketLen & 0xFF; // Length, 2 octets
+    inputGenericScroll[3] = 0x00; // Clear the byte
+    inputGenericScroll[4] = 0x00; // Clear the byte
+    /*
+        B15B14; Scroll Unit Indication bits.
+        0b00; the unit is a pixel (normalized with respect to the WFD Source display resolution that is conveyed in an RTSP M4 request message).
+        0b01; the unit is a mouse notch (where the application is responsible for representing the number of pixels per notch).
+        0b10-0b11; Reserved.
+
+        B13; Scroll Direction Indication bit.
+        0b0; Scrolling to the right. Scrolling to the right means the displayed content being shifted to the left from a user perspective.
+        0b1; Scrolling to the left. Scrolling to the left means the displayed content being shifted to the right from a user perspective.
+
+        B12:B0; Number of Scroll bits.
+        Number of units for a Horizontal scroll.
+    */
+
+    int32_t unit = 0;
+    if (rapidDocument.HasMember("unit") && rapidDocument["unit"].IsInt()) {
+        unit = rapidDocument["unit"].GetInt();
+    }
+    inputGenericScroll[3] = unit & 0xFF;
+
+    int32_t direction = 0;
+    if (rapidDocument.HasMember("direction") && rapidDocument["direction"].IsInt()) {
+        direction = rapidDocument["direction"].GetInt();
+    }
+    inputGenericScroll[3] |= (direction & 0xFF);
+
+    int32_t amount = 0;
+    if (rapidDocument.HasMember("amount_to_scroll") && rapidDocument["amount_to_scroll"].IsInt()) {
+        amount = rapidDocument["amount_to_scroll"].GetInt();
+    }
+    inputGenericScroll[3] |= ((amount >> 8) & 0xFF); 
+    inputGenericScroll[4] = (amount & 0xFF);
+
+    SendUIBCEvent(INPUT_GENERIC, inputGenericScroll, genericPacketLen);
+    free(inputGenericScroll);
+}
+
+/*
+*  {
+*      "input_type": 8, //GENERIC_ROTATE
+*      "integer_part" : 1,  //The signed integer portion of the amount to rotate in units in radians. A negative 
+*                           //number indicates to rotate clockwise; a positive number indicates to rotate 
+*                           //counter-clockwise
+*      "fraction_part" : 256, //The unit of the fractional part shall be 1/256, and the sign of the fractional part is 
+*                             //always positive.
+*   }
+*/
+void UIBCManager::SendGenericRotate(const char* inEventDesc)
+{
+    if (!m_uibcEnable) {
+        return;
+    }
+
+    rapidjson::Document rapidDocument;
+    rapidDocument.Parse(inEventDesc);
+    if (rapidDocument.HasParseError()) {
+        return;
+    }
+
+    int32_t genericPacketLen = 0;
+    genericPacketLen = 3 + 2;
+
+    unsigned char* inputGenericRotate = (unsigned char*)malloc(genericPacketLen);
+    memset(inputGenericRotate, 0, genericPacketLen);
+
+    int32_t inputType = 0;
+    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+        inputType = rapidDocument["input_type"].GetInt();
+    }
+
+    //Generic Input Body Format
+    inputGenericRotate[0] = inputType & 0xFF; // Type ID, 1 octet
+    inputGenericRotate[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
+    inputGenericRotate[2] = genericPacketLen & 0xFF; // Length, 2 octets
+ 
+    int32_t integerPart = 0;
+    if (rapidDocument.HasMember("integer_part") && rapidDocument["integer_part"].IsInt()) {
+        integerPart = rapidDocument["integer_part"].GetInt();
+    }
+    inputGenericRotate[3] = integerPart & 0xFF;
+
+    int32_t fractionPart = 0;
+    if (rapidDocument.HasMember("fraction_part") && rapidDocument["fraction_part"].IsInt()) {
+        fractionPart = rapidDocument["fraction_part"].GetInt();
+    }
+    inputGenericRotate[4] = fractionPart & 0xFF;
+
+    SendUIBCEvent(INPUT_GENERIC, inputGenericRotate, genericPacketLen);
+    free(inputGenericRotate);
 }
 
 #ifdef _WIN32
@@ -301,7 +833,7 @@ void UIBCManager::SendHIDDescriptor(unsigned char type, unsigned char* body, uns
 
     unsigned char inputBodyHeader[5];
     inputBodyHeader[0] = 1;     // usb
-    inputBodyHeader[1] = type;  // mouse
+    inputBodyHeader[1] = type;  // descriptor type
     inputBodyHeader[2] = 1;     // contains report   
     unsigned short len = htons(length);
     memcpy(inputBodyHeader + 3, &len, sizeof(len));

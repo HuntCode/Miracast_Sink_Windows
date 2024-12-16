@@ -1,4 +1,4 @@
-#ifndef HH_UIBCMANAGER_H
+﻿#ifndef HH_UIBCMANAGER_H
 #define HH_UIBCMANAGER_H
 
 #include <iostream>
@@ -13,11 +13,17 @@
 #include <arpa/inet.h>
 #endif
 
-// Mouse defines
-#define MOUSE_BUTTON_DOWN      0
-#define MOUSE_BUTTON_UP        1
-#define MOUSE_MOTION           2
-#define MOUSE_WHEEL		       3
+// Mouse enum
+enum {
+    kMouseLeftButtonDown = 0,
+    kMouseLeftButtonUp,
+    kMouseMiddleButtonDown,
+    kMouseMiddleButtonUp,
+    kMouseRightButtonDown,
+    kMouseRightButtonUp,
+    kMouseMotion,
+    kMouseWheel,
+};
 
 // Keyboard defines
 #define KEYBOARD_DOWN          0
@@ -78,22 +84,405 @@
 #define INPUT_GENERIC          0
 #define INPUT_HIDC             1
 
-#define HID_TYPE_KEYBOARD   0
-#define HID_TYPE_MOUSE      1
+#define HID_TYPE_KEYBOARD       0
+#define HID_TYPE_MOUSE          1
+#define HID_TYPE_MULTITOUCH     3
 
 #define HIDC_INPUT_HEADER_LENGTH         5
 #define HIDC_INPUT_MOUSE_BODY_LENGTH     6
+#define HIDC_INPUT_MOUSE_TOTAL (HIDC_INPUT_HEADER_LENGTH + HIDC_INPUT_MOUSE_BODY_LENGTH)
+
 #define MAX_KEYBOARD_REPORT              6
 #define HIDC_INPUT_KEYBOARD_BODY_LENGTH  (1 + 1 + 1 + MAX_KEYBOARD_REPORT)
-#define HIDC_INPUT_MOUSE_TOTAL (HIDC_INPUT_HEADER_LENGTH + HIDC_INPUT_MOUSE_BODY_LENGTH)
 #define HIDC_INPUT_KEYBOARD_TOTAL (HIDC_INPUT_HEADER_LENGTH + HIDC_INPUT_KEYBOARD_BODY_LENGTH)
 
+#define HIDC_INPUT_MULTITOUCH_FINGERS 10
+#define HIDC_INPUT_MULTITOUCH_BODY_LENGTH (1 + 6 * HIDC_INPUT_MULTITOUCH_FINGERS + 3)
+#define HIDC_INPUT_MULTITOUCH_TOTAL (HIDC_INPUT_HEADER_LENGTH + HIDC_INPUT_MULTITOUCH_BODY_LENGTH)
 
-static unsigned char mouseDescriptor[] = {
+#define HIDC_INPUT_MULTITOUCH_FEATURE_BODY_LENGTH (1 + 2)
+#define HIDC_INPUT_MULTITOUCH_FEATURE_TOTAL (HIDC_INPUT_HEADER_LENGTH + HIDC_INPUT_MULTITOUCH_FEATURE_BODY_LENGTH)
+
+#define LOGICAL_MAXIMUM 32767
+
+// MultiTouch Descriptor
+static unsigned char s_multiTouchDescriptor[] = {
+    0x05, 0x0D,        // Usage Page (Digitizer)
+    0x09, 0x04,        // Usage (Touch Screen)
+    0xA1, 0x01,        // Collection (Application)
+    0x85, 0x13,        //   Report ID (19)
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x22,        //   Usage (Finger)
+    0xA1, 0x02,        //   Collection (Logical)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x00,        //     Physical Maximum (0)
+    0x55, 0x00,        //     Unit Exponent (0)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x01,        //     Report Count (1)
+    0x09, 0x42,        //     Usage (Tip Switch)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x07,        //     Report Count (7)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x05, 0x0D,        //     Usage Page (Digitizer)
+    0x09, 0x51,        //     Usage (0x51)
+    0x26, 0x63, 0x00,  //     Logical Maximum (99)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x10,        //     Report Size (16)
+    0x55, 0x0E,        //     Unit Exponent (-2)
+    0x65, 0x11,        //     Unit (System: SI Linear, Length: Centimeter)
+    0x27, 0xFF, 0x7F, 0x00, 0x00,  //     Logical Maximum (32766)
+    0x46, 0x40, 0x06,  //     Physical Maximum (1600)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x46, 0x84, 0x03,  //     Physical Maximum (900)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x31,        //     Usage (Y)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x09, 0x54,        //   Usage (0x54)
+    0x95, 0x01,        //   Report Count (1)
+    0x75, 0x08,        //   Report Size (8)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x63,        //   Logical Maximum (99)
+    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x55, 0x0C,        //   Unit Exponent (-4)
+    0x66, 0x01, 0x10,  //   Unit (System: SI Linear, Time: Seconds)
+    0x47, 0xFF, 0xFF, 0x00, 0x00,  //   Physical Maximum (65534)
+    0x27, 0xFF, 0xFF, 0x00, 0x00,  //   Logical Maximum (65534)
+    0x75, 0x10,        //   Report Size (16)
+    0x95, 0x01,        //   Report Count (1)
+    0x09, 0x56,        //   Usage (0x56)
+    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x05, 0x0D,        //   Usage Page (Digitizer)
+    0x85, 0x12,        //   Report ID (18)
+    0x09, 0x55,        //   Usage (0x55)
+    0x95, 0x01,        //   Report Count (1)
+    0x75, 0x10,        //   Report Size (16)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x26, 0x64, 0x00,  //   Logical Maximum (100)
+    0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
+    0xC0               // End Collection
+};
+
+// Mouse Descriptor
+static unsigned char s_mouseDescriptor[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x02,        // Usage (Mouse)
     0xA1, 0x01,        // Collection (Application)
-    0x85, 0x28,        //   Report ID (0x28)
+    0x85, 0x28,        //   Report ID (40)
     0x09, 0x01,        //   Usage (Pointer)
     0xA1, 0x00,        //   Collection (Physical)
     0x05, 0x09,        //     Usage Page (Button)
@@ -118,7 +507,8 @@ static unsigned char mouseDescriptor[] = {
     0xC0               // End Collection
 };
 
-static unsigned char keyboardDescriptor[] = {
+// Keyboard Descriptor
+static unsigned char s_keyboardDescriptor[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x06,        // Usage (Keyboard)
     0xA1, 0x01,        // Collection (Application)
@@ -154,6 +544,37 @@ static unsigned char keyboardDescriptor[] = {
     0xC0               // End Collection
 };
 
+// UIBC Category
+enum UIBCCategory
+{
+    UIBC_NotSupport = -1,
+    UIBC_Generic = 0,
+    UIBC_HIDC
+};
+
+enum SupportHIDTypeFlags {
+    HIDTypeFlags_Keyboard    = 0x01,
+    HIDTypeFlags_Mouse       = 0x02,
+    HIDTypeFlags_SingleTouch = 0x04,
+    HIDTypeFlags_MultiTouch  = 0x08,
+    HIDTypeFlags_Joystick    = 0x10,
+    HIDTypeFlags_Camera      = 0x20,
+    HIDTypeFlags_Gesture     = 0x40,
+    HIDTypeFlags_RemoteCtrl  = 0x80
+};
+
+enum GENERICMessageType {
+    GENERIC_TOUCH_DOWN  = 0,
+    GENERIC_TOUCH_UP    = 1,
+    GENERIC_TOUCH_MOVE  = 2,
+    GENERIC_KEY_DOWN    = 3,
+    GENERIC_KEY_UP      = 4,
+    GENERIC_ZOOM        = 5,
+    GENERIC_VERTICAL_SCROLL     = 6,
+    GENERIC_HORIZONTAL_SCROLL   = 7,
+    GENERIC_ROTATE              = 8
+};
+
 class UIBCManager
 {
 public:
@@ -162,17 +583,42 @@ public:
 
     int ConnectUIBC(const std::string &ip, int port);
 	bool Connected();
+    void SetEnable(bool enable);
+    bool GetEnable();
 
-    void SendHIDMouse(unsigned char type, char xdiff, char ydiff);
+    void SetUIBCCategory(UIBCCategory category);
+    UIBCCategory GetUIBCCategory();
+
+    void SetHIDType(uint8_t typeFlags);
+    uint8_t GetHIDType();
+
+    bool SupportMultiTouch();
+
+    // HIDC
+    void SendHIDMouse(unsigned char type, char xdiff, char ydiff, char wdiff);
     void SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short keyboardValue);
+    void SendHIDMultiTouch(const char* multiTouchMessage);
+    void SendMultiTouchFeature();
+
+    // Generic
+    void SendGenericTouch(const char* inEventDesc, double widthRatio, double heightRatio);
+    
+    //TODO: not used, need test
+    void SendGenericKey(const char* inEventDesc);
+    void SendGenericZoom(const char* inEventDesc);
+    void SendGenericScroll(const char* inEventDesc);
+    void SendGenericRotate(const char* inEventDesc);
 
 private:
 	int m_uibcFd;
-	unsigned short pending_keys[MAX_KEYBOARD_REPORT];
-	bool shift_down;
-	bool alt_down;
-	bool ctrl_down;
-    unsigned char last_buttons = 0;
+    bool m_uibcEnable;
+	unsigned short m_pendingKeys[MAX_KEYBOARD_REPORT];
+	bool m_shiftDown;
+	bool m_altDown;
+	bool m_ctrlDown;
+    unsigned char m_lastButtons = 0;
+    UIBCCategory m_uibcCategory;
+    uint8_t m_HIDType;
 
 #ifdef _WIN32
     // Windows-specific socket initialization and cleanup functions

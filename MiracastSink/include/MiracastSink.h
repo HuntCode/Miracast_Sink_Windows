@@ -1,4 +1,4 @@
-#ifndef MIRACAST_SINK_H
+﻿#ifndef MIRACAST_SINK_H
 #define MIRACAST_SINK_H
 
 #include "RTSPManager.h"
@@ -16,8 +16,17 @@ public:
 	void SetStreamID(uint32_t streamId);
 	void SetMiracastCallback(std::shared_ptr<IMiracastCallback> callback);
 
-	void SendHIDMouse(unsigned char type, char xdiff, char ydiff);
+
+	int GetUIBCCategory();
+
+	void SendHIDMouse(unsigned char type, char xdiff, char ydiff, char wdiff);
 	void SendHIDKeyboard(unsigned char type, unsigned char modType, unsigned short keyboardValue);
+	void SendHIDMultiTouch(const char* multiTouchMessage);
+
+	bool SupportMultiTouch();
+
+	// Generic
+	void SendGenericTouch(const char* inEventDesc, double widthRatio, double heightRatio);
 
 private:
 	std::shared_ptr<RTSPManager> m_rtspManager;

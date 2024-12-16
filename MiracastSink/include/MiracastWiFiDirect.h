@@ -1,8 +1,14 @@
-#pragma once
+ï»¿#ifndef __MIRACASTWIFIDIRECT_H_
+#define __MIRACASTWIFIDIRECT_H_
+
+#ifdef WIN32
 #include <unordered_map>
 
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.Media.Miracast.h>
+
 #include "MiracastSink.h"
-#include "SDLPlayer.h"
 #include "IMiracastCallback.h"
 
 using namespace winrt::Windows::Foundation;
@@ -16,18 +22,36 @@ public:
 	void Start();
 	void Stop();
 
+	void Disconnect(uint32_t streamId);
+
+	// ä¼ é€’å›žè°ƒç»™ä¸Šå±‚
+	void SetMiracastCallback(std::shared_ptr<IMiracastCallback> callback);
+
 	/* IMiracastCallback */
 	virtual void OnConnect(uint32_t streamId) override;
 	virtual void OnDisconnect(uint32_t streamId) override;
 	virtual void OnPlay(uint32_t streamId) override;
 	virtual void OnData(uint32_t streamId, int type, uint8_t* buffer, int bufSize) override;
 
+
+	int GetUIBCCategory(uint32_t streamId);
+
+	void SendHIDMouse(uint32_t streamId, unsigned char type, char xdiff, char ydiff, char wdiff);
+	void SendHIDKeyboard(uint32_t streamId, unsigned char type, unsigned char modType, unsigned short keyboardValue);
+	void SendHIDMultiTouch(uint32_t streamId, const char* multiTouchMessage);
+
+	bool SupportMultiTouch(uint32_t streamId);
+
+	// Generic
+	void SendGenericTouch(uint32_t streamId, const char* inEventDesc, double widthRatio, double heightRatio);
+
 private:
-	// ¶¨ÒåÁ½¸ö unordered_map ÈÝÆ÷
+	std::shared_ptr<IMiracastCallback> m_miracastCallback;
+
+	// å®šä¹‰ä¸¤ä¸ª unordered_map å®¹å™¨
 	std::unordered_map<uint32_t, std::shared_ptr<MiracastReceiverConnection>> m_connMap;
 	std::unordered_map<uint32_t, std::shared_ptr<MiracastSink>> m_sinkMap;
-	std::unordered_map<uint32_t, std::shared_ptr<SDLPlayer>> m_playerMap;
-	std::mutex mapMutex;
+	std::mutex m_mapMutex;
 
 	winrt::event_token m_statusChangedToken;
 	MiracastReceiver m_receiver;
@@ -48,8 +72,8 @@ private:
 	void AddSink(uint32_t streamId, std::shared_ptr<MiracastSink> sink);
 	void RemoveSink(uint32_t streamId);
 	std::shared_ptr<MiracastSink> GetSink(uint32_t streamId);
-
-	void AddSDLPlayer(uint32_t streamId, std::shared_ptr<SDLPlayer> sdlPlayer);
-	void RemoveSDLPlayer(uint32_t streamId);
-	std::shared_ptr<SDLPlayer> GetSDLPlayer(uint32_t streamId);
 };
+
+#endif
+
+#endif
