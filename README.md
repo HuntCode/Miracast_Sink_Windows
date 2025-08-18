@@ -1,0 +1,2 @@
+1）缺少hv库，自行下载配置libhv
+2）缺少TSDecoder，TS使用的是https://github.com/ireader/media-server中的TSDecoder
