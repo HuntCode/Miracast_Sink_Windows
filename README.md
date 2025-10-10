@@ -1,2 +1,2 @@
 - 缺少hv库，自行下载配置libhv，或者使用vcpkg安装
-- 缺少TSDecoder，TS使用的是 [media-server](https://github.com/ireader/media-server) 中的 TSDecoder
+- 缺少TSDecoder，参考 [media-server](https://github.com/ireader/media-server) /libmpeg/include/mpeg-ts.h中的接口
