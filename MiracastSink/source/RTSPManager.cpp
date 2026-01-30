@@ -175,7 +175,7 @@ void RTSPManager::OnMessage(const hv::SocketChannelPtr& channel, hv::Buffer* msg
 	std::string s((char*)msg->data(), msg->size());
 
 #if (defined(WIN32) && defined(_DEBUG))
-	DebugL << "RTSP OnMessage: " << "\n" << s << std::endl;
+	//DebugL << "RTSP OnMessage: " << "\n" << s << std::endl;
 #endif
 
 	const char* buf = s.c_str();
@@ -647,7 +647,7 @@ void RTSPManager::SendMsg(std::shared_ptr<char> buf, uint32_t size)
 	if (m_rtspClient.isConnected()) {
 		m_rtspClient.send(buf.get(), size);
 #if (defined(WIN32) && defined(_DEBUG))
-		DebugL << "RTSP SendMessage: " << "\n" << buf << std::endl;
+		//DebugL << "RTSP SendMessage: " << "\n" << buf << std::endl;
 #endif
 	}
 }

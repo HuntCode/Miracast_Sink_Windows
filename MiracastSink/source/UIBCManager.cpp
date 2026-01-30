@@ -1,10 +1,10 @@
 ﻿#include "UIBCManager.h"
 #include <iostream>
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/stringbuffer.h"
+//#include "rapidjson/document.h"
+//#include "rapidjson/writer.h"
+//#include "rapidjson/stringbuffer.h"
 
-#include "Util/logger.h"
+//#include "Util/logger.h"
 
 #include <map>
 
@@ -387,65 +387,65 @@ void UIBCManager::SendHIDMultiTouch(const char* multiTouchMessage)
 
     inputMultiTouch[5] = 0x13;
 
-    rapidjson::Document rapidDocument;
-    rapidDocument.Parse(multiTouchMessage);
-    if (rapidDocument.HasParseError()) {
-        return;
-    }
+    //rapidjson::Document rapidDocument;
+    //rapidDocument.Parse(multiTouchMessage);
+    //if (rapidDocument.HasParseError()) {
+    //    return;
+    //}
 
-    unsigned short width;
-    unsigned short height;
-    if (rapidDocument.HasMember("width") && rapidDocument["width"].IsInt() &&
-        rapidDocument.HasMember("height") && rapidDocument["height"].IsInt()) {
-        width = rapidDocument["width"].GetInt();
-        height = rapidDocument["height"].GetInt();
-    }
+    //unsigned short width;
+    //unsigned short height;
+    //if (rapidDocument.HasMember("width") && rapidDocument["width"].IsInt() &&
+    //    rapidDocument.HasMember("height") && rapidDocument["height"].IsInt()) {
+    //    width = rapidDocument["width"].GetInt();
+    //    height = rapidDocument["height"].GetInt();
+    //}
 
     // touch_data
-    if (rapidDocument.HasMember("touch_data") && rapidDocument["touch_data"].IsArray()) {
-        const rapidjson::Value& touchData = rapidDocument["touch_data"];
-        for (int i = 0; i < touchData.Size(); ++i) {
-            const rapidjson::Value& touch = touchData[i];
-            if (touch.HasMember("touch_id") && touch["touch_id"].IsInt() &&
-                touch.HasMember("touch_state") && touch["touch_state"].IsInt() &&
-                touch.HasMember("x") && touch["x"].IsInt() &&
-                touch.HasMember("y") && touch["y"].IsInt()) {
-                
-                inputMultiTouch[6 + 6 * i] = touch["touch_state"].GetInt();
-                inputMultiTouch[6 + 1 + 6 * i] = touch["touch_id"].GetInt();
+    //if (rapidDocument.HasMember("touch_data") && rapidDocument["touch_data"].IsArray()) {
+    //    const rapidjson::Value& touchData = rapidDocument["touch_data"];
+    //    for (int i = 0; i < touchData.Size(); ++i) {
+    //        const rapidjson::Value& touch = touchData[i];
+    //        if (touch.HasMember("touch_id") && touch["touch_id"].IsInt() &&
+    //            touch.HasMember("touch_state") && touch["touch_state"].IsInt() &&
+    //            touch.HasMember("x") && touch["x"].IsInt() &&
+    //            touch.HasMember("y") && touch["y"].IsInt()) {
+    //            
+    //            inputMultiTouch[6 + 6 * i] = touch["touch_state"].GetInt();
+    //            inputMultiTouch[6 + 1 + 6 * i] = touch["touch_id"].GetInt();
 
-                unsigned short x = touch["x"].GetInt();        
-                unsigned short logicX = LOGICAL_MAXIMUM * x / width;
-                //DebugL << "x: " << x << " logicX: " << logicX;
+    //            unsigned short x = touch["x"].GetInt();        
+    //            unsigned short logicX = LOGICAL_MAXIMUM * x / width;
+    //            //DebugL << "x: " << x << " logicX: " << logicX;
 
-                inputMultiTouch[6 + 2 + 6 * i] = logicX & 0xFF;
-                inputMultiTouch[6 + 3 + 6 * i] = (logicX >> 8) & 0xFF;
+    //            inputMultiTouch[6 + 2 + 6 * i] = logicX & 0xFF;
+    //            inputMultiTouch[6 + 3 + 6 * i] = (logicX >> 8) & 0xFF;
 
 
-                unsigned short y = touch["y"].GetInt();
-                unsigned short logicY = LOGICAL_MAXIMUM * y / height;
-                //DebugL << "y: " << x << " logicY: " << logicX;
+    //            unsigned short y = touch["y"].GetInt();
+    //            unsigned short logicY = LOGICAL_MAXIMUM * y / height;
+    //            //DebugL << "y: " << x << " logicY: " << logicX;
 
-                inputMultiTouch[6 + 4 + 6 * i] = logicY & 0xFF;
-                inputMultiTouch[6 + 5 + 6 * i] = (logicY >> 8) & 0xFF;
+    //            inputMultiTouch[6 + 4 + 6 * i] = logicY & 0xFF;
+    //            inputMultiTouch[6 + 5 + 6 * i] = (logicY >> 8) & 0xFF;
 
-            }
-        }
-    }
+    //        }
+    //    }
+    //}
 
-    // finger count
-    if (rapidDocument.HasMember("fingers") && rapidDocument["fingers"].IsInt()) {
-        inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 3] = rapidDocument["fingers"].GetInt();
-    }
+    //// finger count
+    //if (rapidDocument.HasMember("fingers") && rapidDocument["fingers"].IsInt()) {
+    //    inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 3] = rapidDocument["fingers"].GetInt();
+    //}
 
-    // timestamp
-    if (rapidDocument.HasMember("timestamp") && rapidDocument["timestamp"].IsInt()) {
-        int timestamp = rapidDocument["timestamp"].GetInt();
-        
-        unsigned short feature = timestamp;
-        inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 2] = feature & 0xFF;
-        inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 1] = (feature >> 8) & 0xFF;
-    }
+    //// timestamp
+    //if (rapidDocument.HasMember("timestamp") && rapidDocument["timestamp"].IsInt()) {
+    //    int timestamp = rapidDocument["timestamp"].GetInt();
+    //    
+    //    unsigned short feature = timestamp;
+    //    inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 2] = feature & 0xFF;
+    //    inputMultiTouch[HIDC_INPUT_MULTITOUCH_TOTAL - 1] = (feature >> 8) & 0xFF;
+    //}
 
     SendUIBCEvent(INPUT_HIDC, inputMultiTouch, HIDC_INPUT_MULTITOUCH_TOTAL);
     free(inputMultiTouch);
@@ -492,61 +492,61 @@ void UIBCManager::SendGenericTouch(const char* inEventDesc, double widthRatio, d
         return;
     }
 
-    rapidjson::Document rapidDocument;
-    rapidDocument.Parse(inEventDesc);
-    if (rapidDocument.HasParseError()) {
-        return;
-    }
-    int32_t numberOfPointers = 0;
-    // finger count
-    if (rapidDocument.HasMember("fingers") && rapidDocument["fingers"].IsInt()) {
-        numberOfPointers = rapidDocument["fingers"].GetInt();
-    }
+    //rapidjson::Document rapidDocument;
+    //rapidDocument.Parse(inEventDesc);
+    //if (rapidDocument.HasParseError()) {
+    //    return;
+    //}
+    //int32_t numberOfPointers = 0;
+    //// finger count
+    //if (rapidDocument.HasMember("fingers") && rapidDocument["fingers"].IsInt()) {
+    //    numberOfPointers = rapidDocument["fingers"].GetInt();
+    //}
 
-    int32_t genericPacketLen = 0;
-    genericPacketLen = 3 + 1 + numberOfPointers * 5;
+    //int32_t genericPacketLen = 0;
+    //genericPacketLen = 3 + 1 + numberOfPointers * 5;
 
-    unsigned char* inputGenericTouch = (unsigned char*)malloc(genericPacketLen);
-    memset(inputGenericTouch, 0, genericPacketLen);
+    //unsigned char* inputGenericTouch = (unsigned char*)malloc(genericPacketLen);
+    //memset(inputGenericTouch, 0, genericPacketLen);
 
-    int32_t inputType = 0;
-    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
-        inputType = rapidDocument["input_type"].GetInt();
-    }
-    //Generic Input Body Format
-    inputGenericTouch[0] = inputType & 0xFF; // Type ID, 1 octet
+    //int32_t inputType = 0;
+    //if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+    //    inputType = rapidDocument["input_type"].GetInt();
+    //}
+    ////Generic Input Body Format
+    //inputGenericTouch[0] = inputType & 0xFF; // Type ID, 1 octet
 
-    // Length, 2 bytes
-    inputGenericTouch[1] = (genericPacketLen >> 8) & 0xFF; // first byte
-    inputGenericTouch[2] = genericPacketLen & 0xFF; //last byte
+    //// Length, 2 bytes
+    //inputGenericTouch[1] = (genericPacketLen >> 8) & 0xFF; // first byte
+    //inputGenericTouch[2] = genericPacketLen & 0xFF; //last byte
 
-    // Number of pointers, 1 octet
-    inputGenericTouch[3] = numberOfPointers & 0xFF;
+    //// Number of pointers, 1 octet
+    //inputGenericTouch[3] = numberOfPointers & 0xFF;
 
-    // touch_data
-    if (rapidDocument.HasMember("touch_data") && rapidDocument["touch_data"].IsArray()) {
-        const rapidjson::Value& touchData = rapidDocument["touch_data"];
-        for (int i = 0; i < touchData.Size(); ++i) {
-            const rapidjson::Value& touch = touchData[i];
-            if (touch.HasMember("touch_id") && touch["touch_id"].IsInt() &&
-                touch.HasMember("x") && touch["x"].IsInt() &&
-                touch.HasMember("y") && touch["y"].IsInt()) {
+    //// touch_data
+    //if (rapidDocument.HasMember("touch_data") && rapidDocument["touch_data"].IsArray()) {
+    //    const rapidjson::Value& touchData = rapidDocument["touch_data"];
+    //    for (int i = 0; i < touchData.Size(); ++i) {
+    //        const rapidjson::Value& touch = touchData[i];
+    //        if (touch.HasMember("touch_id") && touch["touch_id"].IsInt() &&
+    //            touch.HasMember("x") && touch["x"].IsInt() &&
+    //            touch.HasMember("y") && touch["y"].IsInt()) {
 
-                inputGenericTouch[4 + 5 * i] = touch["touch_id"].GetInt();
+    //            inputGenericTouch[4 + 5 * i] = touch["touch_id"].GetInt();
 
-                unsigned short x = touch["x"].GetInt();
-                inputGenericTouch[4 + 1 + 5 * i] = (x >> 8) & 0xFF;
-                inputGenericTouch[4 + 2 + 5 * i] = x & 0xFF;
+    //            unsigned short x = touch["x"].GetInt();
+    //            inputGenericTouch[4 + 1 + 5 * i] = (x >> 8) & 0xFF;
+    //            inputGenericTouch[4 + 2 + 5 * i] = x & 0xFF;
 
-                unsigned short y = touch["y"].GetInt();
-                inputGenericTouch[4 + 3 + 5 * i] = (y >> 8) & 0xFF;
-                inputGenericTouch[4 + 4 + 5 * i] = y & 0xFF;
-            }
-        }
-    }
+    //            unsigned short y = touch["y"].GetInt();
+    //            inputGenericTouch[4 + 3 + 5 * i] = (y >> 8) & 0xFF;
+    //            inputGenericTouch[4 + 4 + 5 * i] = y & 0xFF;
+    //        }
+    //    }
+    //}
 
-    SendUIBCEvent(INPUT_GENERIC, inputGenericTouch, genericPacketLen);
-    free(inputGenericTouch);
+    //SendUIBCEvent(INPUT_GENERIC, inputGenericTouch, genericPacketLen);
+    //free(inputGenericTouch);
 }
 
 
@@ -563,48 +563,48 @@ void UIBCManager::SendGenericKey(const char* inEventDesc)
         return;
     }
 
-    rapidjson::Document rapidDocument;
-    rapidDocument.Parse(inEventDesc);
-    if (rapidDocument.HasParseError()) {
-        return;
-    }
+    //rapidjson::Document rapidDocument;
+    //rapidDocument.Parse(inEventDesc);
+    //if (rapidDocument.HasParseError()) {
+    //    return;
+    //}
 
-    int32_t genericPacketLen = 0;
-    genericPacketLen = 3 + 5;
+    //int32_t genericPacketLen = 0;
+    //genericPacketLen = 3 + 5;
 
-    unsigned char* inputGenericKey = (unsigned char*)malloc(genericPacketLen);
-    memset(inputGenericKey, 0, genericPacketLen);
+    //unsigned char* inputGenericKey = (unsigned char*)malloc(genericPacketLen);
+    //memset(inputGenericKey, 0, genericPacketLen);
 
-    int32_t inputType = 0;
-    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
-        inputType = rapidDocument["input_type"].GetInt();
-    }
+    //int32_t inputType = 0;
+    //if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+    //    inputType = rapidDocument["input_type"].GetInt();
+    //}
 
-    //Generic Input Body Format
-    inputGenericKey[0] = inputType & 0xFF; // Type ID, 1 octet
-    
-    //Length, 2 bytes
-    inputGenericKey[1] = (genericPacketLen >> 8) & 0xFF; // first byte
-    inputGenericKey[2] = genericPacketLen & 0xFF; // last byte
-    inputGenericKey[3] = 0x00; // reserved
+    ////Generic Input Body Format
+    //inputGenericKey[0] = inputType & 0xFF; // Type ID, 1 octet
+    //
+    ////Length, 2 bytes
+    //inputGenericKey[1] = (genericPacketLen >> 8) & 0xFF; // first byte
+    //inputGenericKey[2] = genericPacketLen & 0xFF; // last byte
+    //inputGenericKey[3] = 0x00; // reserved
 
 
-    int32_t key1 = 0;
-    if (rapidDocument.HasMember("key_one") && rapidDocument["key_one"].IsInt()) {
-        key1 = rapidDocument["key_one"].GetInt();
-    }
-    inputGenericKey[4] = (key1 >> 8) & 0xFF;
-    inputGenericKey[5] = key1 & 0xFF;
+    //int32_t key1 = 0;
+    //if (rapidDocument.HasMember("key_one") && rapidDocument["key_one"].IsInt()) {
+    //    key1 = rapidDocument["key_one"].GetInt();
+    //}
+    //inputGenericKey[4] = (key1 >> 8) & 0xFF;
+    //inputGenericKey[5] = key1 & 0xFF;
 
-    int32_t key2 = 0;
-    if (rapidDocument.HasMember("key_two") && rapidDocument["key_two"].IsInt()) {
-        key2 = rapidDocument["key_two"].GetInt();
-    }
-    inputGenericKey[6] = (key2 >> 8) & 0xFF;
-    inputGenericKey[7] = key2 & 0xFF;
+    //int32_t key2 = 0;
+    //if (rapidDocument.HasMember("key_two") && rapidDocument["key_two"].IsInt()) {
+    //    key2 = rapidDocument["key_two"].GetInt();
+    //}
+    //inputGenericKey[6] = (key2 >> 8) & 0xFF;
+    //inputGenericKey[7] = key2 & 0xFF;
 
-    SendUIBCEvent(INPUT_GENERIC, inputGenericKey, genericPacketLen);
-    free(inputGenericKey);
+    //SendUIBCEvent(INPUT_GENERIC, inputGenericKey, genericPacketLen);
+    //free(inputGenericKey);
 }
 
 /*
@@ -623,56 +623,56 @@ void UIBCManager::SendGenericZoom(const char* inEventDesc)
         return;
     }
 
-    rapidjson::Document rapidDocument;
-    rapidDocument.Parse(inEventDesc);
-    if (rapidDocument.HasParseError()) {
-        return;
-    }
+    //rapidjson::Document rapidDocument;
+    //rapidDocument.Parse(inEventDesc);
+    //if (rapidDocument.HasParseError()) {
+    //    return;
+    //}
 
-    int32_t genericPacketLen = 0;
-    genericPacketLen = 3 + 6;
+    //int32_t genericPacketLen = 0;
+    //genericPacketLen = 3 + 6;
 
-    unsigned char* inputGenericZoom = (unsigned char*)malloc(genericPacketLen);
-    memset(inputGenericZoom, 0, genericPacketLen);
+    //unsigned char* inputGenericZoom = (unsigned char*)malloc(genericPacketLen);
+    //memset(inputGenericZoom, 0, genericPacketLen);
 
-    int32_t inputType = 0;
-    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
-        inputType = rapidDocument["input_type"].GetInt();
-    }
+    //int32_t inputType = 0;
+    //if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+    //    inputType = rapidDocument["input_type"].GetInt();
+    //}
 
-    //Generic Input Body Format
-    inputGenericZoom[0] = inputType & 0xFF; // Type ID, 1 octet
-    inputGenericZoom[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
-    inputGenericZoom[2] = genericPacketLen & 0xFF; // Length, 2 octets
+    ////Generic Input Body Format
+    //inputGenericZoom[0] = inputType & 0xFF; // Type ID, 1 octet
+    //inputGenericZoom[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
+    //inputGenericZoom[2] = genericPacketLen & 0xFF; // Length, 2 octets
 
-    int32_t xCoord = 0;
-    if (rapidDocument.HasMember("x") && rapidDocument["x"].IsInt()) {
-        xCoord = rapidDocument["x"].GetInt();
-    }
-    inputGenericZoom[3] = (xCoord >> 8) & 0xFF;
-    inputGenericZoom[4] = xCoord & 0xFF;
+    //int32_t xCoord = 0;
+    //if (rapidDocument.HasMember("x") && rapidDocument["x"].IsInt()) {
+    //    xCoord = rapidDocument["x"].GetInt();
+    //}
+    //inputGenericZoom[3] = (xCoord >> 8) & 0xFF;
+    //inputGenericZoom[4] = xCoord & 0xFF;
 
-    int32_t yCoord = 0;
-    if (rapidDocument.HasMember("y") && rapidDocument["y"].IsInt()) {
-        yCoord = rapidDocument["y"].GetInt();
-    }
-    inputGenericZoom[5] = (yCoord >> 8) & 0xFF;
-    inputGenericZoom[6] = yCoord & 0xFF;
+    //int32_t yCoord = 0;
+    //if (rapidDocument.HasMember("y") && rapidDocument["y"].IsInt()) {
+    //    yCoord = rapidDocument["y"].GetInt();
+    //}
+    //inputGenericZoom[5] = (yCoord >> 8) & 0xFF;
+    //inputGenericZoom[6] = yCoord & 0xFF;
 
-    int32_t integerPart = 0;
-    if (rapidDocument.HasMember("integer_part") && rapidDocument["integer_part"].IsInt()) {
-        integerPart = rapidDocument["integer_part"].GetInt();
-    }
-    inputGenericZoom[7] = integerPart & 0xFF;
+    //int32_t integerPart = 0;
+    //if (rapidDocument.HasMember("integer_part") && rapidDocument["integer_part"].IsInt()) {
+    //    integerPart = rapidDocument["integer_part"].GetInt();
+    //}
+    //inputGenericZoom[7] = integerPart & 0xFF;
 
-    int32_t fractionPart = 0;
-    if (rapidDocument.HasMember("fraction_part") && rapidDocument["fraction_part"].IsInt()) {
-        fractionPart = rapidDocument["fraction_part"].GetInt();
-    }
-    inputGenericZoom[8] = fractionPart & 0xFF;
+    //int32_t fractionPart = 0;
+    //if (rapidDocument.HasMember("fraction_part") && rapidDocument["fraction_part"].IsInt()) {
+    //    fractionPart = rapidDocument["fraction_part"].GetInt();
+    //}
+    //inputGenericZoom[8] = fractionPart & 0xFF;
 
-    SendUIBCEvent(INPUT_GENERIC, inputGenericZoom, genericPacketLen);
-    free(inputGenericZoom);
+    //SendUIBCEvent(INPUT_GENERIC, inputGenericZoom, genericPacketLen);
+    //free(inputGenericZoom);
 }
 
 /*
@@ -689,64 +689,64 @@ void UIBCManager::SendGenericScroll(const char* inEventDesc)
         return;
     }
 
-    rapidjson::Document rapidDocument;
-    rapidDocument.Parse(inEventDesc);
-    if (rapidDocument.HasParseError()) {
-        return;
-    }
+    //rapidjson::Document rapidDocument;
+    //rapidDocument.Parse(inEventDesc);
+    //if (rapidDocument.HasParseError()) {
+    //    return;
+    //}
 
-    int32_t genericPacketLen = 0;
-    genericPacketLen = 3 + 2;
+    //int32_t genericPacketLen = 0;
+    //genericPacketLen = 3 + 2;
 
-    unsigned char* inputGenericScroll = (unsigned char*)malloc(genericPacketLen);
-    memset(inputGenericScroll, 0, genericPacketLen);
+    //unsigned char* inputGenericScroll = (unsigned char*)malloc(genericPacketLen);
+    //memset(inputGenericScroll, 0, genericPacketLen);
 
-    int32_t inputType = 0;
-    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
-        inputType = rapidDocument["input_type"].GetInt();
-    }
+    //int32_t inputType = 0;
+    //if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+    //    inputType = rapidDocument["input_type"].GetInt();
+    //}
 
-    //Generic Input Body Format
-    inputGenericScroll[0] = inputType & 0xFF; // Type ID, 1 octet
-    inputGenericScroll[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
-    inputGenericScroll[2] = genericPacketLen & 0xFF; // Length, 2 octets
-    inputGenericScroll[3] = 0x00; // Clear the byte
-    inputGenericScroll[4] = 0x00; // Clear the byte
-    /*
-        B15B14; Scroll Unit Indication bits.
-        0b00; the unit is a pixel (normalized with respect to the WFD Source display resolution that is conveyed in an RTSP M4 request message).
-        0b01; the unit is a mouse notch (where the application is responsible for representing the number of pixels per notch).
-        0b10-0b11; Reserved.
+    ////Generic Input Body Format
+    //inputGenericScroll[0] = inputType & 0xFF; // Type ID, 1 octet
+    //inputGenericScroll[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
+    //inputGenericScroll[2] = genericPacketLen & 0xFF; // Length, 2 octets
+    //inputGenericScroll[3] = 0x00; // Clear the byte
+    //inputGenericScroll[4] = 0x00; // Clear the byte
+    ///*
+    //    B15B14; Scroll Unit Indication bits.
+    //    0b00; the unit is a pixel (normalized with respect to the WFD Source display resolution that is conveyed in an RTSP M4 request message).
+    //    0b01; the unit is a mouse notch (where the application is responsible for representing the number of pixels per notch).
+    //    0b10-0b11; Reserved.
 
-        B13; Scroll Direction Indication bit.
-        0b0; Scrolling to the right. Scrolling to the right means the displayed content being shifted to the left from a user perspective.
-        0b1; Scrolling to the left. Scrolling to the left means the displayed content being shifted to the right from a user perspective.
+    //    B13; Scroll Direction Indication bit.
+    //    0b0; Scrolling to the right. Scrolling to the right means the displayed content being shifted to the left from a user perspective.
+    //    0b1; Scrolling to the left. Scrolling to the left means the displayed content being shifted to the right from a user perspective.
 
-        B12:B0; Number of Scroll bits.
-        Number of units for a Horizontal scroll.
-    */
+    //    B12:B0; Number of Scroll bits.
+    //    Number of units for a Horizontal scroll.
+    //*/
 
-    int32_t unit = 0;
-    if (rapidDocument.HasMember("unit") && rapidDocument["unit"].IsInt()) {
-        unit = rapidDocument["unit"].GetInt();
-    }
-    inputGenericScroll[3] = unit & 0xFF;
+    //int32_t unit = 0;
+    //if (rapidDocument.HasMember("unit") && rapidDocument["unit"].IsInt()) {
+    //    unit = rapidDocument["unit"].GetInt();
+    //}
+    //inputGenericScroll[3] = unit & 0xFF;
 
-    int32_t direction = 0;
-    if (rapidDocument.HasMember("direction") && rapidDocument["direction"].IsInt()) {
-        direction = rapidDocument["direction"].GetInt();
-    }
-    inputGenericScroll[3] |= (direction & 0xFF);
+    //int32_t direction = 0;
+    //if (rapidDocument.HasMember("direction") && rapidDocument["direction"].IsInt()) {
+    //    direction = rapidDocument["direction"].GetInt();
+    //}
+    //inputGenericScroll[3] |= (direction & 0xFF);
 
-    int32_t amount = 0;
-    if (rapidDocument.HasMember("amount_to_scroll") && rapidDocument["amount_to_scroll"].IsInt()) {
-        amount = rapidDocument["amount_to_scroll"].GetInt();
-    }
-    inputGenericScroll[3] |= ((amount >> 8) & 0xFF); 
-    inputGenericScroll[4] = (amount & 0xFF);
+    //int32_t amount = 0;
+    //if (rapidDocument.HasMember("amount_to_scroll") && rapidDocument["amount_to_scroll"].IsInt()) {
+    //    amount = rapidDocument["amount_to_scroll"].GetInt();
+    //}
+    //inputGenericScroll[3] |= ((amount >> 8) & 0xFF); 
+    //inputGenericScroll[4] = (amount & 0xFF);
 
-    SendUIBCEvent(INPUT_GENERIC, inputGenericScroll, genericPacketLen);
-    free(inputGenericScroll);
+    //SendUIBCEvent(INPUT_GENERIC, inputGenericScroll, genericPacketLen);
+    //free(inputGenericScroll);
 }
 
 /*
@@ -765,42 +765,42 @@ void UIBCManager::SendGenericRotate(const char* inEventDesc)
         return;
     }
 
-    rapidjson::Document rapidDocument;
-    rapidDocument.Parse(inEventDesc);
-    if (rapidDocument.HasParseError()) {
-        return;
-    }
+    //rapidjson::Document rapidDocument;
+    //rapidDocument.Parse(inEventDesc);
+    //if (rapidDocument.HasParseError()) {
+    //    return;
+    //}
 
-    int32_t genericPacketLen = 0;
-    genericPacketLen = 3 + 2;
+    //int32_t genericPacketLen = 0;
+    //genericPacketLen = 3 + 2;
 
-    unsigned char* inputGenericRotate = (unsigned char*)malloc(genericPacketLen);
-    memset(inputGenericRotate, 0, genericPacketLen);
+    //unsigned char* inputGenericRotate = (unsigned char*)malloc(genericPacketLen);
+    //memset(inputGenericRotate, 0, genericPacketLen);
 
-    int32_t inputType = 0;
-    if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
-        inputType = rapidDocument["input_type"].GetInt();
-    }
+    //int32_t inputType = 0;
+    //if (rapidDocument.HasMember("input_type") && rapidDocument["input_type"].IsInt()) {
+    //    inputType = rapidDocument["input_type"].GetInt();
+    //}
 
-    //Generic Input Body Format
-    inputGenericRotate[0] = inputType & 0xFF; // Type ID, 1 octet
-    inputGenericRotate[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
-    inputGenericRotate[2] = genericPacketLen & 0xFF; // Length, 2 octets
+    ////Generic Input Body Format
+    //inputGenericRotate[0] = inputType & 0xFF; // Type ID, 1 octet
+    //inputGenericRotate[1] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
+    //inputGenericRotate[2] = genericPacketLen & 0xFF; // Length, 2 octets
  
-    int32_t integerPart = 0;
-    if (rapidDocument.HasMember("integer_part") && rapidDocument["integer_part"].IsInt()) {
-        integerPart = rapidDocument["integer_part"].GetInt();
-    }
-    inputGenericRotate[3] = integerPart & 0xFF;
+    //int32_t integerPart = 0;
+    //if (rapidDocument.HasMember("integer_part") && rapidDocument["integer_part"].IsInt()) {
+    //    integerPart = rapidDocument["integer_part"].GetInt();
+    //}
+    //inputGenericRotate[3] = integerPart & 0xFF;
 
-    int32_t fractionPart = 0;
-    if (rapidDocument.HasMember("fraction_part") && rapidDocument["fraction_part"].IsInt()) {
-        fractionPart = rapidDocument["fraction_part"].GetInt();
-    }
-    inputGenericRotate[4] = fractionPart & 0xFF;
+    //int32_t fractionPart = 0;
+    //if (rapidDocument.HasMember("fraction_part") && rapidDocument["fraction_part"].IsInt()) {
+    //    fractionPart = rapidDocument["fraction_part"].GetInt();
+    //}
+    //inputGenericRotate[4] = fractionPart & 0xFF;
 
-    SendUIBCEvent(INPUT_GENERIC, inputGenericRotate, genericPacketLen);
-    free(inputGenericRotate);
+    //SendUIBCEvent(INPUT_GENERIC, inputGenericRotate, genericPacketLen);
+    //free(inputGenericRotate);
 }
 
 #ifdef _WIN32

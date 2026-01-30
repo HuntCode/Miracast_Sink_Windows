@@ -3,7 +3,7 @@
 
 #include "RTPManager.h"
 #include "RTSPManager.h"
-#include "Util/logger.h"
+//#include "Util/logger.h"
 #include <chrono>
 
 
@@ -20,10 +20,10 @@ uint32_t rtp_ssrc(void)
 	HCRYPTPROV provider;
 
 	seed = (uint32_t)rand();
-	if (CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {
-		CryptGenRandom(provider, sizeof(seed), (PBYTE)&seed);
-		CryptReleaseContext(provider, 0);
-	}
+	//if (CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {
+	//	CryptGenRandom(provider, sizeof(seed), (PBYTE)&seed);
+	//	CryptReleaseContext(provider, 0);
+	//}
 	return seed;
 }
 
@@ -60,14 +60,13 @@ uint32_t rtp_ssrc(void)
 
 #endif
 
-
 // From WebRTC module_common_types_public.h
 template <typename U>
 inline bool IsNewer(U value, U prev_value) {
 	static_assert(!std::numeric_limits<U>::is_signed, "U must be unsigned");
 	// kBreakpoint is the half-way mark for the type U. For instance, for a
 	// uint16_t it will be 0x8000, and for a uint32_t, it will be 0x8000000.
-	constexpr U kBreakpoint = (std::numeric_limits<U>::max() >> 1) + 1;
+    constexpr U kBreakpoint = ((std::numeric_limits<U>::max)() >> 1) + 1;
 	// Distinguish between elements that are exactly kBreakpoint apart.
 	// If t1>t2 and |t1-t2| = kBreakpoint: IsNewer(t1,t2)=true,
 	// IsNewer(t2,t1)=false
@@ -238,7 +237,7 @@ void RTPPacketHandler::consumePackets() {
 			free(avaliblePackage->data);
 		}
 	}
-	DebugL << "consumerThread exit..." << sortedPackets.size();		
+	//DebugL << "consumerThread exit..." << sortedPackets.size();		
 }
 
 uint16_t RTPPacketHandler::previousSequenceNumber(uint16_t seqNum) const
@@ -321,7 +320,7 @@ void RTPManager::SendRTPFBNACK(uint16_t pid, uint16_t blp)
 
 
 void RTPManager::initTsDecoder() {
-	m_tsDecoder = std::make_shared<mediakit::TSDecoder>();
+	m_tsDecoder = std::make_shared<TSDecoder>();
 	m_tsDecoder->setOnDecode([this](int stream, int codecid, int flags, int64_t pts, int64_t dts, const void* data, size_t bytes) {
 		if (codecid == 0x0F) {
 			OnData(TS_TYPE_AUDIO, (uint8_t*)data, bytes);
