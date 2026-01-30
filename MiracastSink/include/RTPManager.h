@@ -107,7 +107,7 @@ private:
 	FILE* fTS; // for dump ts file
 	FILE* fH264; // for dump ts file
 
-	std::shared_ptr<mediakit::TSDecoder> m_tsDecoder;
+	std::shared_ptr<TSDecoder> m_tsDecoder;
 
 	bool GenerateRtpPort(uint16_t& port);
 	void OnPayloadData(const hv::SocketChannelPtr& channel, hv::Buffer* msg);
